@@ -203,16 +203,54 @@ class BattleScene extends Phaser.Scene {
 
   createTower(pad,def){
     const body=this.add.container(pad.x,pad.y);
-    const halo=this.add.circle(0,0,30,def.color,0.11);
-    this.tweens.add({targets:halo,scale:1.12,alpha:0.03,duration:950,yoyo:true,repeat:-1});
+    const halo=this.add.circle(0,0,32,def.color,0.10);
+    this.tweens.add({targets:halo,scale:1.16,alpha:0.025,duration:900,yoyo:true,repeat:-1});
+    const shadow=this.add.ellipse(0,15,50,16,0x000000,0.30);
     const base=this.add.circle(0,8,25,0x0a111e,1);
     const shell=this.add.circle(0,0,21,0x182b4d,1).setStrokeStyle(3,def.color,1);
-    const core=this.add.circle(0,0,11,0x29466f,1);
-    const turret=this.add.rectangle(12,0,34,8,def.color,1).setOrigin(.3,.5);
-    const icon=this.add.text(0,34,def.icon,{fontSize:'17px'}).setOrigin(.5);
-    body.add([halo,base,shell,core,turret,icon]);
-    body.setSize(64,72).setInteractive({useHandCursor:true});
-    const tower={kind:'tower',uid:`t${Date.now()}${Math.random()}`,pad,def,body,turret,mods:[],level:1,nextShot:0,rangeBonus:0,damageBonus:0,rateMul:1};
+    const core=this.add.circle(0,0,10,0x29466f,1);
+
+    const weapon=this.add.container(0,-2);
+    let turret=null;
+    if(def.id==='ranger'){
+      turret=this.add.rectangle(10,0,42,6,def.color,1).setOrigin(.25,.5);
+      const bow=this.add.arc(3,0,17,265,95,false,def.color,0).setStrokeStyle(3,def.color,1);
+      weapon.add([bow,turret]);
+    }else if(def.id==='arcane'){
+      turret=this.add.circle(8,0,10,def.color,1);
+      const orb2=this.add.circle(25,0,5,0xffffff,0.9);
+      weapon.add([turret,orb2]);
+      this.tweens.add({targets:orb2,y:{from:-6,to:6},duration:560,yoyo:true,repeat:-1});
+    }else if(def.id==='bombard'){
+      turret=this.add.rectangle(9,0,38,13,def.color,1).setOrigin(.25,.5);
+      const muzzle=this.add.circle(28,0,8,0x20293b,1).setStrokeStyle(2,0xdde8ff,0.75);
+      weapon.add([turret,muzzle]);
+    }else if(def.id==='guardian'){
+      turret=this.add.polygon(10,0,[0,-16,23,0,0,16,-8,0],def.color,0.95);
+      weapon.add(turret);
+    }else if(def.id==='frost'){
+      turret=this.add.polygon(9,0,[0,-18,11,-2,5,17,-5,17,-11,-2],0xb8efff,0.95).setStrokeStyle(2,def.color,1);
+      weapon.add(turret);
+    }else if(def.id==='tesla'){
+      turret=this.add.rectangle(8,0,32,5,def.color,0.85).setOrigin(.2,.5);
+      const coilA=this.add.circle(4,-9,5,0xa9b7ff,1), coilB=this.add.circle(4,9,5,0xa9b7ff,1);
+      weapon.add([turret,coilA,coilB]);
+    }else if(def.id==='venom'){
+      turret=this.add.circle(8,0,13,0x70ef78,0.92);
+      const bubble=this.add.circle(20,-8,5,0xaaffaa,0.7);
+      weapon.add([turret,bubble]);
+      this.tweens.add({targets:bubble,y:{from:-11,to:-4},alpha:{from:.35,to:.9},duration:620,yoyo:true,repeat:-1});
+    }else{
+      turret=this.add.rectangle(0,-8,5,32,0xffdb75,1).setOrigin(.5,1);
+      const dish=this.add.arc(0,-22,17,205,335,false,0xffdb75,0).setStrokeStyle(4,0xffdb75,1);
+      weapon.add([turret,dish]);
+      this.tweens.add({targets:dish,angle:{from:-10,to:10},duration:700,yoyo:true,repeat:-1});
+    }
+
+    const icon=this.add.text(0,34,def.icon,{fontSize:'16px'}).setOrigin(.5);
+    body.add([halo,shadow,base,shell,core,weapon,icon]);
+    body.setSize(68,78).setInteractive({useHandCursor:true});
+    const tower={kind:'tower',uid:`t${Date.now()}${Math.random()}`,pad,def,body,weapon,turret,mods:[],level:1,nextShot:0,rangeBonus:0,damageBonus:0,rateMul:1,levelArt:[]};
     pad.tower=tower; this.towers.push(tower); this.refreshPad(pad);
     body.on('pointerdown',pointer=>{pointer.event.stopPropagation?.();this.selectEntity(tower);});
     this.selectEntity(tower); this.showToast(`${def.name} built.`);
@@ -221,7 +259,9 @@ class BattleScene extends Phaser.Scene {
   towerStats(tower){
     const s={range:tower.def.range+tower.rangeBonus,damage:tower.def.damage+tower.damageBonus,rate:tower.def.rate*tower.rateMul,slow:tower.def.slow||0,poison:tower.def.poison||0,splash:tower.def.splash||0,chain:tower.def.chain||0,crit:0};
     for(const id of tower.mods){ const m=MODS.find(x=>x.id===id); if(!m) continue; if(m.range)s.range+=m.range;if(m.damage)s.damage+=m.damage;if(m.rateMul)s.rate*=m.rateMul;if(m.slow)s.slow+=m.slow;if(m.poison)s.poison+=m.poison;if(m.splash)s.splash+=m.splash;if(m.chain)s.chain+=m.chain;if(m.crit)s.crit+=m.crit; }
-    if(Date.now()<this.state.overdriveUntil) s.rate*=0.7;
+    const beacon=this.towers.find(t=>t!==tower && t.def.id==='beacon' && dist(t.pad.x,t.pad.y,tower.pad.x,tower.pad.y)<205);
+    if(beacon){ s.range+=18; s.rate*=0.88; s.damage+=3; }
+    if(this.time.now<this.state.overdriveUntil) s.rate*=0.7;
     s.rate=Math.max(180,s.rate); return s;
   }
 
@@ -238,7 +278,14 @@ class BattleScene extends Phaser.Scene {
     if(tower.level>=4) return this.showToast('Tower is already max level.');
     if(this.state.gold<cost) return this.showToast(`Need ${cost} gold.`);
     this.state.gold-=cost; tower.level++; tower.damageBonus+=7; tower.rangeBonus+=8; tower.rateMul*=0.93;
-    tower.body.setScale(1+0.07*(tower.level-1));
+    tower.body.setScale(1+0.06*(tower.level-1));
+    const ring=this.add.circle(0,0,24+4*tower.level,0x000000,0).setStrokeStyle(2,tower.def.color,0.38);
+    tower.body.addAt(ring,2); tower.levelArt.push(ring);
+    if(tower.level>=3){
+      const finL=this.add.triangle(-18,6,0,12,8,0,16,12,tower.def.color,0.75);
+      const finR=this.add.triangle(18,6,0,12,8,0,16,12,tower.def.color,0.75).setFlipX(true);
+      tower.body.add([finL,finR]); tower.levelArt.push(finL,finR);
+    }
     this.add.particles(tower.pad.x,tower.pad.y,'spark',{speed:{min:30,max:120},lifespan:380,quantity:12,scale:{start:.45,end:0},tint:tower.def.color});
     this.showToast(tower.level===3?'Level 3: second mod slot unlocked.':`Tower upgraded to Lv.${tower.level}.`);
     this.updateHUD(); this.refreshInspector();
@@ -288,10 +335,11 @@ class BattleScene extends Phaser.Scene {
     const hp=this.add.rectangle(-25,-36,50,6,0x5cff91,1).setOrigin(0,.5);
     c.add([shadow,legL,legR,armL,armR,glow,coin,inner,sym,role,hpbg,hp]);
 
+    let shieldSprite=null;
     if(d.shield){
-      const shield=this.add.circle(0,0,31,0x7f98ff,0.07).setStrokeStyle(3,0x9bb0ff,0.8);
-      c.add(shield);
-      this.tweens.add({targets:shield,scale:1.09,alpha:0.02,duration:520,yoyo:true,repeat:-1});
+      shieldSprite=this.add.circle(0,0,31,0x7f98ff,0.07).setStrokeStyle(3,0x9bb0ff,0.8);
+      c.add(shieldSprite);
+      this.tweens.add({targets:shieldSprite,scale:1.09,alpha:0.02,duration:520,yoyo:true,repeat:-1});
     }
     if(d.heal){
       const plus=this.add.text(27,-21,'+',{fontFamily:'Arial Black',fontSize:'18px',color:'#7dffb7'}).setOrigin(.5);
@@ -305,7 +353,7 @@ class BattleScene extends Phaser.Scene {
     this.tweens.add({targets:coin,scale:1.06,duration:420,yoyo:true,repeat:-1,ease:'Sine.easeInOut'});
     this.tweens.add({targets:legL,angle:{from:-12,to:12},duration:180,yoyo:true,repeat:-1});
     this.tweens.add({targets:legR,angle:{from:12,to:-12},duration:180,yoyo:true,repeat:-1});
-    const enemy={id,d,container:c,coin,sym,hpBar:hp,hp:d.hp,maxHp:d.hp,shield:d.shield||0,maxShield:d.shield||0,pathIndex:0,pathT:0,slowUntil:0,slowFactor:1,poisonUntil:0,poisonDps:0,lastHeal:0,dead:false};
+    const enemy={id,d,container:c,coin,sym,hpBar:hp,shieldSprite,hp:d.hp,maxHp:d.hp,shield:d.shield||0,maxShield:d.shield||0,pathIndex:0,pathT:0,slowUntil:0,slowFactor:1,poisonUntil:0,poisonDps:0,lastHeal:0,dead:false};
     this.enemies.push(enemy); return enemy;
   }
 
@@ -374,14 +422,31 @@ class BattleScene extends Phaser.Scene {
   }
 
   killEnemy(e){
-    if(e.dead)return; e.dead=true; this.state.gold+=e.d.reward; this.state.energy=Math.min(100,this.state.energy+4);
+    if(e.dead)return;
+    const splitInfo=e.d.split?{pathIndex:e.pathIndex,pathT:e.pathT,x:e.container.x,y:e.container.y}:null;
+    e.dead=true; this.state.gold+=e.d.reward; this.state.energy=Math.min(100,this.state.energy+4);
     this.tweens.add({targets:e.container,scale:0,angle:180,alpha:0,duration:180,onComplete:()=>e.container.destroy()});
-    this.enemies=this.enemies.filter(x=>x!==e); this.updateHUD();
+    this.enemies=this.enemies.filter(x=>x!==e);
+    if(splitInfo){
+      this.time.delayedCall(120,()=>{
+        for(let i=0;i<2;i++){
+          const child=this.createCoinEnemy('xrp');
+          child.hp*=0.58; child.maxHp=child.hp;
+          child.pathIndex=splitInfo.pathIndex; child.pathT=clamp(splitInfo.pathT+(i?0.035:-0.02),0,0.98);
+          child.container.setPosition(splitInfo.x+(i?10:-10),splitInfo.y+(i?6:-6)).setScale(.78);
+        }
+        this.showToast('DOGE split into two XRP runners!');
+      });
+    }
+    this.updateHUD();
   }
 
   damageEnemy(e,amount,opts={}){
     if(e.dead)return;
-    if(e.shield>0){ const used=Math.min(e.shield,amount);e.shield-=used;amount-=used; }
+    if(e.shield>0){
+      const used=Math.min(e.shield,amount); e.shield-=used; amount-=used;
+      if(e.shieldSprite && e.shield<=0){ this.tweens.add({targets:e.shieldSprite,scale:1.6,alpha:0,duration:170,onComplete:()=>e.shieldSprite?.destroy()}); e.shieldSprite=null; }
+    }
     if(amount<=0)return;
     if(!opts.ignoreArmor && e.d.armor) amount*=1-e.d.armor;
     e.hp-=amount;
@@ -395,7 +460,9 @@ class BattleScene extends Phaser.Scene {
       if(t.def.support) continue;
       if(time<t.nextShot) continue;
       const s=this.towerStats(t); const target=this.pickTarget(t.pad.x,t.pad.y,s.range); if(!target)continue;
-      t.nextShot=time+s.rate; t.turret.rotation=Phaser.Math.Angle.Between(0,0,target.container.x-t.pad.x,target.container.y-t.pad.y);
+      t.nextShot=time+s.rate;
+      if(t.weapon) t.weapon.rotation=Phaser.Math.Angle.Between(0,0,target.container.x-t.pad.x,target.container.y-t.pad.y);
+      if(t.weapon) this.tweens.add({targets:t.weapon,scaleX:.82,duration:55,yoyo:true});
       if(t.def.id==='tesla'){ this.chainLightning(t,target,s); }
       else this.fireProjectile(t.pad.x,t.pad.y,target,s,t.def.color,t.def.id==='bombard'?'bomb':'tower');
     }
@@ -488,7 +555,13 @@ class BattleScene extends Phaser.Scene {
     if(this.state.energy<p.cost)return this.showToast('Not enough Core Energy.');
     this.state.energy-=p.cost; this.state.powerCd[id]=p.cooldown; this.clearSelection();
     if(id==='bombard'){
-      const marker=this.add.circle(x,y,82,0xff875f,0.08).setStrokeStyle(3,0xff875f,.9); this.tweens.add({targets:marker,scale:.25,alpha:1,duration:400,onComplete:()=>{for(const e of this.enemies)if(!e.dead&&dist(x,y,e.container.x,e.container.y)<95)this.damageEnemy(e,72,{});this.cameras.main.shake(160,.008);marker.destroy();}});
+      const marker=this.add.circle(x,y,82,0xff875f,0.08).setStrokeStyle(3,0xff875f,.9);
+      const reticle=this.add.text(x,y,'⊕',{fontFamily:'Arial Black',fontSize:'42px',color:'#ffbd8d'}).setOrigin(.5);
+      this.tweens.add({targets:[marker,reticle],scale:.25,alpha:1,duration:400,onComplete:()=>{
+        for(const e of this.enemies)if(!e.dead&&dist(x,y,e.container.x,e.container.y)<95)this.damageEnemy(e,72,{});
+        const flash=this.add.circle(x,y,18,0xffd0a6,1); this.tweens.add({targets:flash,scale:6,alpha:0,duration:220,onComplete:()=>flash.destroy()});
+        this.cameras.main.shake(160,.008); marker.destroy(); reticle.destroy();
+      }});
     } else if(id==='laser'){
       const beam=this.add.rectangle(x,H/2,16,H,0xff4960,.85); for(const e of this.enemies)if(!e.dead&&Math.abs(e.container.x-x)<45)this.damageEnemy(e,110,{ignoreArmor:true}); this.tweens.add({targets:beam,alpha:0,width:44,duration:260,onComplete:()=>beam.destroy()});
     } else if(id==='gravity'){
@@ -496,7 +569,7 @@ class BattleScene extends Phaser.Scene {
     } else if(id==='reinforce'){
       const s=this.add.circle(x,y,62,0x64e6a4,.10).setStrokeStyle(4,0x64e6a4,.7); const txt=this.add.text(x,y,'✚',{fontSize:'30px',color:'#9ff1c9'}).setOrigin(.5); const c=this.add.container(0,0,[s,txt]); this.reinforceZones.push({x,y,r:62,until:this.time.now+8000,sprite:c});
     } else if(id==='overdrive'){
-      this.state.overdriveUntil=Date.now()+8000; this.cameras.main.flash(180,86,128,255,false);
+      this.state.overdriveUntil=this.time.now+8000; this.cameras.main.flash(180,86,128,255,false);
     }
     this.updateHUD(); this.updatePowerRail();
   }
