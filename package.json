@@ -1,0 +1,12 @@
+{
+  "name": "volya-gram-defense",
+  "version": "0.7.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "serve -s . -l ${PORT:-3000}"
+  },
+  "dependencies": {
+    "serve": "^14.2.4"
+  }
+}
