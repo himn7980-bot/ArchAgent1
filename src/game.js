@@ -329,11 +329,11 @@ class BattleScene extends Phaser.Scene {
     const glow=this.add.circle(0,0,29,d.color,0.13);
     const coin=this.add.circle(0,0,23,d.color,1).setStrokeStyle(4,0xffffff,0.72);
     const inner=this.add.circle(0,0,17,0x0b1322,0.30);
-    const sym=this.add.text(0,-1,d.symbol,{fontFamily:'Arial Black',fontSize:'20px',color:'#fff'}).setOrigin(.5);
+    const logo=this.createCoinLogo(id,d);
     const role=this.add.text(0,31,d.role.toUpperCase(),{fontFamily:'Arial',fontSize:'8px',fontStyle:'bold',color:'#aebfe2'}).setOrigin(.5);
     const hpbg=this.add.rectangle(0,-36,50,6,0x03070d,0.92);
     const hp=this.add.rectangle(-25,-36,50,6,0x5cff91,1).setOrigin(0,.5);
-    c.add([shadow,legL,legR,armL,armR,glow,coin,inner,sym,role,hpbg,hp]);
+    c.add([shadow,legL,legR,armL,armR,glow,coin,inner,logo,role,hpbg,hp]);
 
     let shieldSprite=null;
     if(d.shield){
@@ -353,8 +353,46 @@ class BattleScene extends Phaser.Scene {
     this.tweens.add({targets:coin,scale:1.06,duration:420,yoyo:true,repeat:-1,ease:'Sine.easeInOut'});
     this.tweens.add({targets:legL,angle:{from:-12,to:12},duration:180,yoyo:true,repeat:-1});
     this.tweens.add({targets:legR,angle:{from:12,to:-12},duration:180,yoyo:true,repeat:-1});
-    const enemy={id,d,container:c,coin,sym,hpBar:hp,shieldSprite,hp:d.hp,maxHp:d.hp,shield:d.shield||0,maxShield:d.shield||0,pathIndex:0,pathT:0,slowUntil:0,slowFactor:1,poisonUntil:0,poisonDps:0,lastHeal:0,dead:false};
+    const enemy={id,d,container:c,coin,logo,hpBar:hp,shieldSprite,hp:d.hp,maxHp:d.hp,shield:d.shield||0,maxShield:d.shield||0,pathIndex:0,pathT:0,slowUntil:0,slowFactor:1,poisonUntil:0,poisonDps:0,lastHeal:0,dead:false};
     this.enemies.push(enemy); return enemy;
+  }
+
+  createCoinLogo(id,d){
+    if(id==='eth'){
+      return this.add.polygon(0,-1,[0,-18,10,0,0,7,-10,0],0xffffff,0.98).setStrokeStyle(1,0x9aa9ff,1);
+    }
+    if(id==='sol'){
+      const logo=this.add.container(0,0);
+      const a=this.add.rectangle(-2,-9,25,5,0x6cf0c2,1).setSkewX(-0.38);
+      const b=this.add.rectangle(2,0,25,5,0x9c63ff,1).setSkewX(-0.38);
+      const cc=this.add.rectangle(-2,9,25,5,0x54d8ff,1).setSkewX(-0.38);
+      logo.add([a,b,cc]); return logo;
+    }
+    if(id==='bnb'){
+      const logo=this.add.container(0,0);
+      const diamond=(x,y,s)=>this.add.rectangle(x,y,s,s,0xffffff,1).setAngle(45);
+      logo.add([diamond(0,-10,7),diamond(-10,0,7),diamond(10,0,7),diamond(0,10,7),diamond(0,0,6)]);
+      return logo;
+    }
+    if(id==='ada'){
+      const logo=this.add.container(0,0);
+      for(let i=0;i<8;i++){const a=Math.PI*2*i/8;logo.add(this.add.circle(Math.cos(a)*12,Math.sin(a)*12,2.2,0xffffff,1));}
+      logo.add(this.add.circle(0,0,3.2,0xffffff,1)); return logo;
+    }
+    if(id==='avax'){
+      return this.add.triangle(0,1,0,18,11,-8,-11,-8,0xffffff,1);
+    }
+    if(id==='trx'){
+      const g=this.add.graphics().lineStyle(3,0xffffff,1);
+      g.beginPath(); g.moveTo(-13,-11); g.lineTo(14,-7); g.lineTo(-3,15); g.closePath(); g.strokePath();
+      g.lineBetween(-13,-11,-3,15); g.lineBetween(14,-7,2,-2); return g;
+    }
+    if(id==='xrp'){
+      const g=this.add.graphics().lineStyle(3,0xffffff,1);
+      g.beginPath(); g.arc(0,-5,13,0.25,2.9,false); g.strokePath();
+      g.beginPath(); g.arc(0,5,13,3.4,6.0,false); g.strokePath(); return g;
+    }
+    return this.add.text(0,-1,d.symbol,{fontFamily:'Arial Black',fontSize:'20px',color:'#fff'}).setOrigin(.5);
   }
 
   update(time,delta){
