@@ -1,4 +1,6 @@
 import { HEROES, TOWERS, MODS, POWERS, COINS, WAVES } from './data.js';
+import { PathRoute } from './core/PathRoute.js';
+import { WaveManager } from './core/WaveManager.js';
 
 const W = 1600;
 const H = 900;
@@ -31,8 +33,8 @@ class BattleScene extends Phaser.Scene {
 
   preload(){
     this.load.spritesheet('heroSheet','./assets/heroes/hero-sheet.webp',{
-      frameWidth:64,
-      frameHeight:80
+      frameWidth:96,
+      frameHeight:120
     });
   }
 
@@ -42,8 +44,11 @@ class BattleScene extends Phaser.Scene {
       running:false, betweenWaves:true, spawnIndex:0, spawnTimer:0,
       selected:null, selectedEntity:null, drawerOpen:true, tab:'towers',
       powerCd:Object.fromEntries(POWERS.map(p=>[p.id,0])), overdriveUntil:0,
-      heroLimit:HERO_DEPLOY_LIMITS[0]
+      heroLimit:HERO_DEPLOY_LIMITS[0], gameSpeed:1
     };
+    this.simTime=0;
+    this.route=new PathRoute(PATH);
+    this.waveManager=new WaveManager(WAVES,15);
 
     this.enemies=[];
     this.towers=[];
@@ -55,14 +60,7 @@ class BattleScene extends Phaser.Scene {
     this.createWorld();
     this.createUI();
     this.updateHUD();
-    this.showToast('Build your defense. Then start Wave 1.');
-
-    this.time.addEvent({delay:1000,loop:true,callback:()=>{
-      this.state.energy = Math.min(this.state.maxEnergy,this.state.energy+2);
-      for(const p of POWERS) this.state.powerCd[p.id]=Math.max(0,this.state.powerCd[p.id]-1000);
-      this.updatePowerRail();
-      this.updateHUD();
-    }});
+    this.showToast('Build phase — Wave 1 auto-starts in 15 seconds.');
   }
 
   createTextures(){
@@ -261,7 +259,7 @@ class BattleScene extends Phaser.Scene {
     for(const id of tower.mods){ const m=MODS.find(x=>x.id===id); if(!m) continue; if(m.range)s.range+=m.range;if(m.damage)s.damage+=m.damage;if(m.rateMul)s.rate*=m.rateMul;if(m.slow)s.slow+=m.slow;if(m.poison)s.poison+=m.poison;if(m.splash)s.splash+=m.splash;if(m.chain)s.chain+=m.chain;if(m.crit)s.crit+=m.crit; }
     const beacon=this.towers.find(t=>t!==tower && t.def.id==='beacon' && dist(t.pad.x,t.pad.y,tower.pad.x,tower.pad.y)<205);
     if(beacon){ s.range+=18; s.rate*=0.88; s.damage+=3; }
-    if(this.time.now<this.state.overdriveUntil) s.rate*=0.7;
+    if(this.simTime<this.state.overdriveUntil) s.rate*=0.7;
     s.rate=Math.max(180,s.rate); return s;
   }
 
@@ -353,7 +351,7 @@ class BattleScene extends Phaser.Scene {
     this.tweens.add({targets:coin,scale:1.06,duration:420,yoyo:true,repeat:-1,ease:'Sine.easeInOut'});
     this.tweens.add({targets:legL,angle:{from:-12,to:12},duration:180,yoyo:true,repeat:-1});
     this.tweens.add({targets:legR,angle:{from:12,to:-12},duration:180,yoyo:true,repeat:-1});
-    const enemy={id,d,container:c,coin,logo,hpBar:hp,shieldSprite,hp:d.hp,maxHp:d.hp,shield:d.shield||0,maxShield:d.shield||0,pathIndex:0,pathT:0,slowUntil:0,slowFactor:1,poisonUntil:0,poisonDps:0,lastHeal:0,dead:false};
+    const enemy={id,d,container:c,coin,logo,hpBar:hp,shieldSprite,hp:d.hp,maxHp:d.hp,shield:d.shield||0,maxShield:d.shield||0,pathIndex:0,pathT:0,pathProgress:0,slowUntil:0,slowFactor:1,poisonUntil:0,poisonDps:0,lastHeal:0,dead:false};
     this.enemies.push(enemy); return enemy;
   }
 
@@ -397,37 +395,54 @@ class BattleScene extends Phaser.Scene {
 
   update(time,delta){
     if(!this.state) return;
-    this.updateEnemies(time,delta);
-    this.updateTowers(time);
-    this.updateHeroes(time,delta);
-    this.updateZones(time,delta);
-    this.updateWave(time,delta);
+    const simDelta=Math.min(50,delta)*(this.state.gameSpeed||1);
+    this.simTime+=simDelta;
+    this.tweens.timeScale=this.state.gameSpeed||1;
+    this.state.energy=Math.min(this.state.maxEnergy,this.state.energy+simDelta*0.0022);
+    for(const p of POWERS) this.state.powerCd[p.id]=Math.max(0,this.state.powerCd[p.id]-simDelta);
+    this.updateEnemies(this.simTime,simDelta);
+    this.updateTowers(this.simTime);
+    this.updateHeroes(this.simTime,simDelta);
+    this.updateZones(this.simTime,simDelta);
+    this.updateWave(this.simTime,simDelta);
+    this.updatePowerRail();
+    this.updateHUD();
   }
 
   updateWave(time,delta){
-    if(!this.state.running) return;
-    const wave=WAVES[this.state.wave-1];
-    this.state.spawnTimer-=delta;
-    if(this.state.spawnIndex<wave.length && this.state.spawnTimer<=0){
-      this.createCoinEnemy(wave[this.state.spawnIndex++]); this.state.spawnTimer=650;
+    this.waveManager.update(delta/1000,this);
+    this.state.running=this.waveManager.active;
+    this.state.wave=this.waveManager.waveNumber;
+    if(this.waveCountdownText){
+      this.waveCountdownText.setText(this.waveManager.active?'WAVE ACTIVE':`NEXT ${this.waveManager.timeUntilNextWave.toFixed(1)}s`);
+      this.waveCountdownText.setColor(!this.waveManager.active&&this.waveManager.timeUntilNextWave<5?'#ff7c8c':'#8fe8ff');
     }
-    if(this.state.spawnIndex>=wave.length && this.enemies.filter(e=>!e.dead).length===0){
-      this.state.running=false; this.state.betweenWaves=true;
-      if(this.state.wave>=WAVES.length){ this.showVictory(); return; }
-      this.state.wave++;
-      this.state.heroLimit=HERO_DEPLOY_LIMITS[this.state.wave-1]||5;
-      for(const p of this.buildPads){ if(!p.unlocked && p.unlockWave<=this.state.wave){p.unlocked=true;this.refreshPad(p);} }
-      this.state.gold+=70; this.state.energy=Math.min(100,this.state.energy+20);
-      this.showToast(`Wave cleared. Build phase — Wave ${this.state.wave}.`);
-      this.startWaveBtn.setText(`START WAVE ${this.state.wave}`).setVisible(true);
-      this.updateHUD(); this.renderDeck();
-    }
+    if(this.startWaveBtn) this.startWaveBtn.setVisible(!this.waveManager.active&&!this.waveManager.finished);
   }
 
   startWave(){
-    if(this.state.running) return;
-    this.state.running=true; this.state.betweenWaves=false; this.state.spawnIndex=0; this.state.spawnTimer=250;
-    this.startWaveBtn.setVisible(false); this.showToast(`Wave ${this.state.wave} started.`);
+    this.waveManager.sendEarly(this);
+  }
+
+  onWaveStarted(wave){
+    this.state.running=true;
+    this.state.betweenWaves=false;
+    this.state.wave=wave;
+    this.startWaveBtn?.setVisible(false);
+    this.showToast(`Wave ${wave} started.`);
+  }
+
+  onBuildPhase(wave){
+    this.state.running=false;
+    this.state.betweenWaves=true;
+    this.state.wave=wave;
+    this.state.heroLimit=HERO_DEPLOY_LIMITS[wave-1]||5;
+    for(const p of this.buildPads){ if(!p.unlocked && p.unlockWave<=wave){p.unlocked=true;this.refreshPad(p);} }
+    this.state.gold+=70;
+    this.state.energy=Math.min(100,this.state.energy+20);
+    this.startWaveBtn?.setText(`START WAVE ${wave}`).setVisible(true);
+    this.showToast(`Build phase — Wave ${wave} auto-starts in 15 seconds.`);
+    this.renderDeck();
   }
 
   updateEnemies(time,delta){
@@ -445,13 +460,12 @@ class BattleScene extends Phaser.Scene {
   }
 
   advanceEnemy(e,distance){
-    while(distance>0 && e.pathIndex<PATH.length-1){
-      const a=PATH[e.pathIndex],b=PATH[e.pathIndex+1]; const segLen=dist(a.x,a.y,b.x,b.y); const rem=segLen*(1-e.pathT);
-      if(distance<rem){e.pathT+=distance/segLen;distance=0;} else {distance-=rem;e.pathIndex++;e.pathT=0;}
-    }
-    if(e.pathIndex>=PATH.length-1){ this.enemyEscaped(e); return; }
-    const a=PATH[e.pathIndex],b=PATH[e.pathIndex+1];
-    e.container.x=Phaser.Math.Linear(a.x,b.x,e.pathT); e.container.y=Phaser.Math.Linear(a.y,b.y,e.pathT);
+    e.pathProgress=(e.pathProgress||0)+(distance/this.route.totalLength);
+    if(e.pathProgress>=1){ this.enemyEscaped(e); return; }
+    const pos=this.route.getPosition(e.pathProgress);
+    e.container.setPosition(pos.x,pos.y);
+    e.pathIndex=Math.floor(e.pathProgress*(PATH.length-1));
+    e.pathT=e.pathProgress*(PATH.length-1)-e.pathIndex;
   }
 
   enemyEscaped(e){
@@ -461,7 +475,7 @@ class BattleScene extends Phaser.Scene {
 
   killEnemy(e){
     if(e.dead)return;
-    const splitInfo=e.d.split?{pathIndex:e.pathIndex,pathT:e.pathT,x:e.container.x,y:e.container.y}:null;
+    const splitInfo=e.d.split?{pathProgress:e.pathProgress||0,x:e.container.x,y:e.container.y}:null;
     e.dead=true; this.state.gold+=e.d.reward; this.state.energy=Math.min(100,this.state.energy+4);
     this.tweens.add({targets:e.container,scale:0,angle:180,alpha:0,duration:180,onComplete:()=>e.container.destroy()});
     this.enemies=this.enemies.filter(x=>x!==e);
@@ -470,8 +484,9 @@ class BattleScene extends Phaser.Scene {
         for(let i=0;i<2;i++){
           const child=this.createCoinEnemy('xrp');
           child.hp*=0.58; child.maxHp=child.hp;
-          child.pathIndex=splitInfo.pathIndex; child.pathT=clamp(splitInfo.pathT+(i?0.035:-0.02),0,0.98);
-          child.container.setPosition(splitInfo.x+(i?10:-10),splitInfo.y+(i?6:-6)).setScale(.78);
+          child.pathProgress=clamp(splitInfo.pathProgress+(i?0.008:-0.006),0,0.98);
+          const cp=this.route.getPosition(child.pathProgress);
+          child.container.setPosition(cp.x+(i?10:-10),cp.y+(i?6:-6)).setScale(.78);
         }
         this.showToast('DOGE split into two XRP runners!');
       });
@@ -545,7 +560,7 @@ class BattleScene extends Phaser.Scene {
 
   pickTarget(x,y,range){
     const list=this.enemies.filter(e=>!e.dead&&dist(x,y,e.container.x,e.container.y)<=range);
-    list.sort((a,b)=>(b.pathIndex+b.pathT)-(a.pathIndex+a.pathT)); return list[0]||null;
+    list.sort((a,b)=>(b.pathProgress||0)-(a.pathProgress||0)); return list[0]||null;
   }
 
   fireProjectile(x,y,target,stats,color,style){
@@ -603,11 +618,11 @@ class BattleScene extends Phaser.Scene {
     } else if(id==='laser'){
       const beam=this.add.rectangle(x,H/2,16,H,0xff4960,.85); for(const e of this.enemies)if(!e.dead&&Math.abs(e.container.x-x)<45)this.damageEnemy(e,110,{ignoreArmor:true}); this.tweens.add({targets:beam,alpha:0,width:44,duration:260,onComplete:()=>beam.destroy()});
     } else if(id==='gravity'){
-      const s=this.add.circle(x,y,90,0x765cff,.10).setStrokeStyle(4,0x927dff,.65); this.tweens.add({targets:s,scale:.82,duration:500,yoyo:true,repeat:-1}); this.gravityZones.push({x,y,r:90,until:this.time.now+6000,sprite:s});
+      const s=this.add.circle(x,y,90,0x765cff,.10).setStrokeStyle(4,0x927dff,.65); this.tweens.add({targets:s,scale:.82,duration:500,yoyo:true,repeat:-1}); this.gravityZones.push({x,y,r:90,until:this.simTime+6000,sprite:s});
     } else if(id==='reinforce'){
-      const s=this.add.circle(x,y,62,0x64e6a4,.10).setStrokeStyle(4,0x64e6a4,.7); const txt=this.add.text(x,y,'✚',{fontSize:'30px',color:'#9ff1c9'}).setOrigin(.5); const c=this.add.container(0,0,[s,txt]); this.reinforceZones.push({x,y,r:62,until:this.time.now+8000,sprite:c});
+      const s=this.add.circle(x,y,62,0x64e6a4,.10).setStrokeStyle(4,0x64e6a4,.7); const txt=this.add.text(x,y,'✚',{fontSize:'30px',color:'#9ff1c9'}).setOrigin(.5); const c=this.add.container(0,0,[s,txt]); this.reinforceZones.push({x,y,r:62,until:this.simTime+8000,sprite:c});
     } else if(id==='overdrive'){
-      this.state.overdriveUntil=this.time.now+8000; this.cameras.main.flash(180,86,128,255,false);
+      this.state.overdriveUntil=this.simTime+8000; this.cameras.main.flash(180,86,128,255,false);
     }
     this.updateHUD(); this.updatePowerRail();
   }
@@ -619,17 +634,27 @@ class BattleScene extends Phaser.Scene {
     this.waveText=this.add.text(145,16,'WAVE 1 / 5',{fontFamily:'Arial',fontSize:'16px',fontStyle:'bold',color:'#bcd1f8'});
     this.lifeText=this.add.text(300,16,'❤ 20',{fontFamily:'Arial',fontSize:'17px',fontStyle:'bold',color:'#fff'});
     this.goldText=this.add.text(390,16,'◆ 360',{fontFamily:'Arial',fontSize:'17px',fontStyle:'bold',color:'#ffd277'});
-    this.energyTitle=this.add.text(1030,11,'CORE ENERGY',{fontFamily:'Arial',fontSize:'11px',fontStyle:'bold',color:'#8da4d0'});
-    this.energyBg=this.add.rectangle(1250,35,390,10,0x10192a,1).setStrokeStyle(1,0x2f446e,1);
-    this.energyFill=this.add.rectangle(1055,35,390,8,0x4aa8ff,1).setOrigin(0,.5);
+    this.waveCountdownBox=this.add.rectangle(650,31,240,42,0x111b31,1).setStrokeStyle(2,0x355180,1);
+    this.waveCountdownText=this.add.text(650,31,'NEXT 15.0s',{fontFamily:'Arial Black',fontSize:'14px',color:'#8fe8ff'}).setOrigin(.5);
+    this.speedBtn=this.add.text(790,12,'×1',{fontFamily:'Arial Black',fontSize:'17px',color:'#fff',backgroundColor:'#152640',padding:{x:14,y:9}}).setInteractive({useHandCursor:true});
+    this.speedBtn.on('pointerdown',()=>this.toggleGameSpeed());
+    this.startWaveBtn=this.add.text(865,12,'START WAVE 1',{fontFamily:'Arial Black',fontSize:'13px',color:'#fff',backgroundColor:'#2458c8',padding:{x:13,y:10}}).setInteractive({useHandCursor:true});
+    this.startWaveBtn.on('pointerdown',()=>this.startWave());
+    this.energyTitle=this.add.text(1100,11,'CORE ENERGY',{fontFamily:'Arial Black',fontSize:'10px',color:'#8da4d0'});
+    this.energyBg=this.add.rectangle(1305,35,330,10,0x10192a,1).setStrokeStyle(1,0x2f446e,1);
+    this.energyFill=this.add.rectangle(1140,35,330,8,0x4aa8ff,1).setOrigin(0,.5);
     this.energyValue=this.add.text(1460,12,'45/100',{fontFamily:'Arial',fontSize:'11px',color:'#9bb0d7'});
-    this.uiLayer.add([top,this.stageText,this.waveText,this.lifeText,this.goldText,this.energyTitle,this.energyBg,this.energyFill,this.energyValue]);
+    this.uiLayer.add([top,this.stageText,this.waveText,this.lifeText,this.goldText,this.waveCountdownBox,this.waveCountdownText,this.speedBtn,this.startWaveBtn,this.energyTitle,this.energyBg,this.energyFill,this.energyValue]);
 
     this.createRightRail();
     this.createDrawer();
+  }
 
-    this.startWaveBtn=this.add.text(W-RIGHT_RAIL_W-24,78,'START WAVE 1',{fontFamily:'Arial Black',fontSize:'15px',color:'#fff',backgroundColor:'#2458c8',padding:{x:14,y:10}}).setOrigin(1,0).setInteractive({useHandCursor:true}).setDepth(1002);
-    this.startWaveBtn.on('pointerdown',()=>this.startWave());
+  toggleGameSpeed(){
+    this.state.gameSpeed=this.state.gameSpeed===1?2:1;
+    this.speedBtn.setText(`×${this.state.gameSpeed}`);
+    this.speedBtn.setBackgroundColor(this.state.gameSpeed===2?'#6547d8':'#152640');
+    this.showToast(`Game speed ×${this.state.gameSpeed}`);
   }
 
   createRightRail(){
@@ -744,7 +769,7 @@ class BattleScene extends Phaser.Scene {
   updateHUD(){
     if(!this.waveText)return;
     this.waveText.setText(`WAVE ${this.state.wave} / ${WAVES.length}`); this.lifeText.setText(`❤ ${this.state.life}`); this.goldText.setText(`◆ ${Math.floor(this.state.gold)}`);
-    this.energyValue.setText(`${Math.floor(this.state.energy)}/${this.state.maxEnergy}`); this.energyFill.width=390*(this.state.energy/this.state.maxEnergy);
+    this.energyValue.setText(`${Math.floor(this.state.energy)}/${this.state.maxEnergy}`); this.energyFill.width=330*(this.state.energy/this.state.maxEnergy);
   }
 
   showToast(msg){
