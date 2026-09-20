@@ -504,8 +504,8 @@ class BattleScene extends Phaser.Scene {
     if(!opts.ignoreArmor && e.d.armor) amount*=1-e.d.armor;
     e.hp-=amount;
     e.coin.setFillStyle(0xffffff); this.time.delayedCall(55,()=>{if(!e.dead)e.coin.setFillStyle(e.d.color);});
-    if(opts.slow){e.slowUntil=this.time.now+1300;e.slowFactor=Math.max(0.35,1-opts.slow);}
-    if(opts.poison){e.poisonUntil=this.time.now+2800;e.poisonDps=Math.max(e.poisonDps,opts.poison);}
+    if(opts.slow){e.slowUntil=this.simTime+1300;e.slowFactor=Math.max(0.35,1-opts.slow);}
+    if(opts.poison){e.poisonUntil=this.simTime+2800;e.poisonDps=Math.max(e.poisonDps,opts.poison);}
   }
 
   updateTowers(time){
