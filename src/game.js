@@ -17,12 +17,24 @@ const PAD_DATA = [
   [800,100,2],[860,660,3],[1180,370,4],[1320,670,5]
 ];
 const HERO_DEPLOY_LIMITS = [3,3,4,4,5];
+const HERO_FRAME = {
+  volya:0, pengu:1, utya:2, teddy:3,
+  yoda:4, egor:5, telegramdog:6, virus:7,
+  babyshark:8, yaya:9, gramcat:10, memegram:11, noctis:12
+};
 
 function clamp(v,min,max){ return Math.max(min,Math.min(max,v)); }
 function dist(ax,ay,bx,by){ return Math.hypot(ax-bx,ay-by); }
 
 class BattleScene extends Phaser.Scene {
   constructor(){ super('battle'); }
+
+  preload(){
+    this.load.spritesheet('heroSheet','./assets/heroes/hero-sheet.webp',{
+      frameWidth:64,
+      frameHeight:80
+    });
+  }
 
   create(){
     this.state = {
@@ -104,12 +116,19 @@ class BattleScene extends Phaser.Scene {
 
   createGramCore(){
     this.core=this.add.container(CORE_X+55,CORE_Y);
-    const aura=this.add.circle(0,0,62,0x7e65ff,0.12).setStrokeStyle(3,0x9c89ff,0.45);
-    this.tweens.add({targets:aura,scale:1.18,alpha:0.04,duration:1500,yoyo:true,repeat:-1});
-    const crystal=this.add.polygon(0,0,[0,-46,32,-10,20,38,-20,38,-32,-10],0x8b76ff,0.95).setStrokeStyle(4,0xc4b8ff,1);
-    const gram=this.add.text(0,0,'GRAM',{fontFamily:'Arial Black',fontSize:'19px',color:'#ffffff'}).setOrigin(.5);
-    const label=this.add.text(0,68,'GRAM CORE',{fontFamily:'Arial',fontSize:'13px',fontStyle:'bold',color:'#d8d2ff'}).setOrigin(.5);
-    this.core.add([aura,crystal,gram,label]);
+    const aura=this.add.circle(0,0,68,0x7e65ff,0.12).setStrokeStyle(3,0xa892ff,0.55);
+    this.tweens.add({targets:aura,scale:1.2,alpha:0.035,duration:1400,yoyo:true,repeat:-1});
+    const crystal=this.add.polygon(0,0,[0,-50,35,-12,22,42,-22,42,-35,-12],0x8b76ff,0.98).setStrokeStyle(4,0xd4c9ff,1);
+    const gram=this.add.text(0,1,'GRAM',{fontFamily:'Arial Black',fontSize:'19px',color:'#ffffff'}).setOrigin(.5);
+    const label=this.add.text(0,73,'GRAM CORE',{fontFamily:'Arial',fontSize:'13px',fontStyle:'bold',color:'#d8d2ff'}).setOrigin(.5);
+
+    const guardianRing=this.add.circle(-98,0,38,0xff546a,0.08).setStrokeStyle(2,0xff6578,0.55);
+    const volya=this.add.sprite(-98,-2,'heroSheet',HERO_FRAME.volya).setDisplaySize(58,72);
+    const volyaName=this.add.text(-98,44,'VOLYA',{fontFamily:'Arial Black',fontSize:'11px',color:'#ff8a97'}).setOrigin(.5);
+    this.tweens.add({targets:volya,y:-7,duration:820,yoyo:true,repeat:-1,ease:'Sine.easeInOut'});
+    this.tweens.add({targets:guardianRing,scale:1.14,alpha:0.02,duration:1100,yoyo:true,repeat:-1});
+
+    this.core.add([aura,crystal,gram,label,guardianRing,volya,volyaName]);
   }
 
   createPad(id,x,y,unlockWave){
@@ -233,15 +252,19 @@ class BattleScene extends Phaser.Scene {
   createHero(x,y,def){
     const uid=`h${Date.now()}${Math.random()}`;
     const c=this.add.container(x,y);
-    const shadow=this.add.ellipse(0,22,42,14,0x000000,0.3);
-    const aura=this.add.circle(0,0,28,def.color,0.08).setStrokeStyle(2,def.color,0.45);
-    const body=this.add.circle(0,-2,20,0x111b31,1).setStrokeStyle(3,def.color,1);
-    const face=this.add.text(0,-4,def.name.slice(0,2).toUpperCase(),{fontFamily:'Arial Black',fontSize:'13px',color:'#fff'}).setOrigin(.5);
-    const name=this.add.text(0,31,def.name,{fontFamily:'Arial',fontSize:'11px',fontStyle:'bold',color:'#dce7ff'}).setOrigin(.5);
-    c.add([shadow,aura,body,face,name]); c.setSize(64,76).setInteractive({useHandCursor:true});
-    const hero={kind:'hero',uid,def,container:c,anchor:new Phaser.Math.Vector2(x,y),nextShot:0,hp:100,maxHp:100,target:null};
+    const shadow=this.add.ellipse(0,26,48,15,0x000000,0.34);
+    const aura=this.add.circle(0,0,32,def.color,0.08).setStrokeStyle(2,def.color,0.55);
+    const portrait=this.add.sprite(0,-5,'heroSheet',HERO_FRAME[def.id]).setDisplaySize(50,63);
+    const portraitFrame=this.add.rectangle(0,-5,54,67,0x000000,0).setStrokeStyle(3,def.color,0.9);
+    const hpBg=this.add.rectangle(0,-43,48,5,0x03070d,0.9);
+    const hpBar=this.add.rectangle(-24,-43,48,5,0x64eaa2,1).setOrigin(0,.5);
+    const name=this.add.text(0,34,def.name,{fontFamily:'Arial',fontSize:'10px',fontStyle:'bold',color:'#dce7ff'}).setOrigin(.5);
+    c.add([shadow,aura,portrait,portraitFrame,hpBg,hpBar,name]);
+    c.setSize(66,84).setInteractive({useHandCursor:true});
+    const hero={kind:'hero',uid,def,container:c,portrait,hpBar,anchor:new Phaser.Math.Vector2(x,y),nextShot:0,hp:100,maxHp:100,target:null};
     c.on('pointerdown',pointer=>{pointer.event.stopPropagation?.();this.selectEntity(hero);});
-    this.tweens.add({targets:body,y:-7,duration:700+Math.random()*250,yoyo:true,repeat:-1,ease:'Sine.easeInOut'});
+    this.tweens.add({targets:portrait,y:-10,duration:700+Math.random()*250,yoyo:true,repeat:-1,ease:'Sine.easeInOut'});
+    this.tweens.add({targets:aura,scale:1.16,alpha:0.025,duration:980,yoyo:true,repeat:-1});
     this.heroes.push(hero); this.selectEntity(hero); this.showToast(`${def.name} deployed.`); this.renderDeck();
   }
 
@@ -251,14 +274,37 @@ class BattleScene extends Phaser.Scene {
 
   createCoinEnemy(id){
     const d=COINS[id]; const c=this.add.container(PATH[0].x,PATH[0].y);
-    const shadow=this.add.ellipse(0,18,38,13,0x000000,0.32);
-    const coin=this.add.circle(0,0,22,d.color,1).setStrokeStyle(4,0xffffff,0.7);
-    const inner=this.add.circle(0,0,16,0x0b1322,0.36);
+    const shadow=this.add.ellipse(0,25,48,15,0x000000,0.34);
+    const legL=this.add.rectangle(-11,23,7,18,0x27364d,1).setOrigin(.5,0);
+    const legR=this.add.rectangle(11,23,7,18,0x27364d,1).setOrigin(.5,0);
+    const armL=this.add.rectangle(-28,2,13,6,0x334765,1).setAngle(-18);
+    const armR=this.add.rectangle(28,2,13,6,0x334765,1).setAngle(18);
+    const glow=this.add.circle(0,0,29,d.color,0.13);
+    const coin=this.add.circle(0,0,23,d.color,1).setStrokeStyle(4,0xffffff,0.72);
+    const inner=this.add.circle(0,0,17,0x0b1322,0.30);
     const sym=this.add.text(0,-1,d.symbol,{fontFamily:'Arial Black',fontSize:'20px',color:'#fff'}).setOrigin(.5);
-    const hpbg=this.add.rectangle(0,-31,46,6,0x03070d,0.9);
-    const hp=this.add.rectangle(-23,-31,46,6,0x5cff91,1).setOrigin(0,.5);
-    c.add([shadow,coin,inner,sym,hpbg,hp]);
-    this.tweens.add({targets:coin,scale:1.07,duration:420,yoyo:true,repeat:-1,ease:'Sine.easeInOut'});
+    const role=this.add.text(0,31,d.role.toUpperCase(),{fontFamily:'Arial',fontSize:'8px',fontStyle:'bold',color:'#aebfe2'}).setOrigin(.5);
+    const hpbg=this.add.rectangle(0,-36,50,6,0x03070d,0.92);
+    const hp=this.add.rectangle(-25,-36,50,6,0x5cff91,1).setOrigin(0,.5);
+    c.add([shadow,legL,legR,armL,armR,glow,coin,inner,sym,role,hpbg,hp]);
+
+    if(d.shield){
+      const shield=this.add.circle(0,0,31,0x7f98ff,0.07).setStrokeStyle(3,0x9bb0ff,0.8);
+      c.add(shield);
+      this.tweens.add({targets:shield,scale:1.09,alpha:0.02,duration:520,yoyo:true,repeat:-1});
+    }
+    if(d.heal){
+      const plus=this.add.text(27,-21,'+',{fontFamily:'Arial Black',fontSize:'18px',color:'#7dffb7'}).setOrigin(.5);
+      c.add(plus); this.tweens.add({targets:plus,y:-28,alpha:.35,duration:620,yoyo:true,repeat:-1});
+    }
+    if(d.armor){
+      const plate=this.add.arc(0,0,27,205,335,false,0x111827,0.9).setStrokeStyle(4,0xf9a43a,0.8);
+      c.add(plate);
+    }
+
+    this.tweens.add({targets:coin,scale:1.06,duration:420,yoyo:true,repeat:-1,ease:'Sine.easeInOut'});
+    this.tweens.add({targets:legL,angle:{from:-12,to:12},duration:180,yoyo:true,repeat:-1});
+    this.tweens.add({targets:legR,angle:{from:12,to:-12},duration:180,yoyo:true,repeat:-1});
     const enemy={id,d,container:c,coin,sym,hpBar:hp,hp:d.hp,maxHp:d.hp,shield:d.shield||0,maxShield:d.shield||0,pathIndex:0,pathT:0,slowUntil:0,slowFactor:1,poisonUntil:0,poisonDps:0,lastHeal:0,dead:false};
     this.enemies.push(enemy); return enemy;
   }
@@ -307,7 +353,7 @@ class BattleScene extends Phaser.Scene {
       let speed=e.d.speed*slow;
       if(e.d.dash && Math.floor(time/1600)%3===0) speed*=1.7;
       this.advanceEnemy(e,speed*delta/1000);
-      e.hpBar.width=46*clamp(e.hp/e.maxHp,0,1);
+      e.hpBar.width=50*clamp(e.hp/e.maxHp,0,1);
       if(e.hp<=0) this.killEnemy(e);
     }
   }
@@ -362,11 +408,20 @@ class BattleScene extends Phaser.Scene {
       const td=dist(h.container.x,h.container.y,target.container.x,target.container.y);
       if(d.projectile==='melee'){
         if(td>50){ this.moveHeroToward(h,target.container.x,target.container.y,delta,true); }
-        else if(time>=h.nextShot){h.nextShot=time+d.rate;this.damageEnemy(target,d.damage,{});this.slashFX(target.container.x,target.container.y,d.color);}
+        else if(time>=h.nextShot){
+          h.nextShot=time+d.rate;
+          this.tweens.add({targets:h.portrait,scaleX:1.14,scaleY:.9,duration:75,yoyo:true});
+          this.damageEnemy(target,d.damage,{});
+          this.slashFX(target.container.x,target.container.y,d.color);
+        }
       } else {
         if(td>d.range*.9) this.moveHeroToward(h,target.container.x,target.container.y,delta,false);
         else if(td<d.range*.4) this.moveHeroToward(h,h.container.x-(target.container.x-h.container.x),h.container.y-(target.container.y-h.container.y),delta,false);
-        if(time>=h.nextShot && td<=d.range){ h.nextShot=time+d.rate; this.fireProjectile(h.container.x,h.container.y,target,{damage:d.damage,slow:d.id==='pengu'?0.25:0,poison:d.poison||0,splash:0,crit:d.crit||0},d.color,d.projectile); }
+        if(time>=h.nextShot && td<=d.range){
+          h.nextShot=time+d.rate;
+          this.tweens.add({targets:h.portrait,scaleX:1.10,scaleY:.92,duration:70,yoyo:true});
+          this.fireProjectile(h.container.x,h.container.y,target,{damage:d.damage,slow:d.id==='pengu'?0.25:0,poison:d.poison||0,splash:0,crit:d.crit||0},d.color,d.projectile);
+        }
       }
     }
   }
@@ -519,16 +574,24 @@ class BattleScene extends Phaser.Scene {
     this.deckContainer.removeAll(true);
     for(const [id,t] of Object.entries(this.tabButtons)){t.setColor(this.state.tab===id?'#fff':'#8ca1c9');t.setBackgroundColor(this.state.tab===id?'#17305c':'#101827');}
     const items=this.state.tab==='towers'?TOWERS:this.state.tab==='heroes'?HEROES:MODS;
-    const cardW=this.state.tab==='heroes'?112:102;
+    const cardW=this.state.tab==='heroes'?90:102;
     items.forEach((item,i)=>{
       const x=i*(cardW+8); const c=this.add.container(x,0); const selected=this.state.selected?.kind===(this.state.tab==='towers'?'tower':this.state.tab==='heroes'?'hero':'mod')&&this.state.selected.id===item.id;
       const bg=this.add.rectangle(cardW/2,61,cardW,122,0x111a31,1).setStrokeStyle(2,selected?0x66e0ff:0x2d4370,1).setInteractive({useHandCursor:true});
       const top=this.add.rectangle(cardW/2,29,cardW-12,50,item.color,0.18);
-      const glyph=this.add.text(cardW/2,27,this.state.tab==='towers'?item.icon:(this.state.tab==='heroes'?item.name.slice(0,2).toUpperCase():item.icon),{fontFamily:'Arial Black',fontSize:this.state.tab==='heroes'?'15px':'24px',color:'#fff'}).setOrigin(.5);
-      const name=this.add.text(cardW/2,69,item.name,{fontFamily:'Arial',fontSize:'11px',fontStyle:'bold',color:'#fff',align:'center',wordWrap:{width:cardW-8}}).setOrigin(.5,0);
-      const meta=this.add.text(cardW/2,95,this.state.tab==='towers'?`${item.cost} ◆`:this.state.tab==='heroes'?item.role:'Install on tower',{fontFamily:'Arial',fontSize:'9px',color:'#92a8d1',align:'center',wordWrap:{width:cardW-8}}).setOrigin(.5,0);
+      let heroPortrait=null;
+      let glyph=null;
+      if(this.state.tab==='heroes'){
+        heroPortrait=this.add.sprite(cardW/2,28,'heroSheet',HERO_FRAME[item.id]).setDisplaySize(38,48);
+      }else{
+        glyph=this.add.text(cardW/2,27,this.state.tab==='towers'?item.icon:item.icon,{fontFamily:'Arial Black',fontSize:'24px',color:'#fff'}).setOrigin(.5);
+      }
+      const name=this.add.text(cardW/2,69,item.name,{fontFamily:'Arial',fontSize:'10px',fontStyle:'bold',color:'#fff',align:'center',wordWrap:{width:cardW-6}}).setOrigin(.5,0);
+      const meta=this.add.text(cardW/2,94,this.state.tab==='towers'?`${item.cost} ◆`:this.state.tab==='heroes'?item.role:'Install on tower',{fontFamily:'Arial',fontSize:'8px',color:'#92a8d1',align:'center',wordWrap:{width:cardW-6}}).setOrigin(.5,0);
       if(this.state.tab==='heroes' && this.heroes.some(h=>h.def.id===item.id)) c.setAlpha(.42);
-      c.add([bg,top,glyph,name,meta]);
+      c.add([bg,top,name,meta]);
+      if(heroPortrait)c.add(heroPortrait);
+      if(glyph)c.add(glyph);
       bg.on('pointerdown',()=>this.selectDeckItem(item)); this.deckContainer.add(c);
     });
   }
