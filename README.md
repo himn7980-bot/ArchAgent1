@@ -1,108 +1,30 @@
-# VOLYA: Gram Defense — v0.7 Art & Gameplay Pass
+# VOLYA: Gram Defense v0.8
 
-Mobile-first tower defense built with **Phaser 3**.
+This branch rebuilds the unstable parts of the prototype around a more standard tower-defense architecture.
 
-## Core idea
+## v0.8 fixes
 
-You defend the **GRAM Core** with VOLYA, deployable heroes, defensive towers, tower mod cards, and tactical powers.
+- hero sprite sheet corrected to **96×120 frames**, so hero artwork renders in the deck and on the battlefield
+- enemy movement changed to **normalized path progress** through a dedicated `PathRoute` core
+- waves moved to a dedicated `WaveManager`
+- **15 second countdown** before Wave 1 and between later waves
+- **START WAVE** still sends the wave immediately
+- if START WAVE is not pressed, the wave **auto-starts when the countdown reaches 0**
+- **×1 / ×2** speed button added to the top HUD
+- ×2 affects movement, spawning, attacks, cooldowns, status effects and game tweens
+- GRAM remains the defended Core, with VOLYA permanently guarding it
+- BTC / ETH / SOL / BNB / XRP / DOGE / USDT / ADA / AVAX / TRX remain the enemy roster
+- towers, hero deployment, Tower Mods and Tactical Powers remain active
 
-The enemy waves are stylized, animated crypto-creatures inspired by recognizable coin identities. GRAM itself is never an enemy.
+## Architecture
 
-## Current enemy roster
+The implementation is original VOLYA code, but the restructuring was informed by:
 
-- Bitcoin — heavy tank with armor
-- Ethereum — shield unit
-- Solana — dash runner
-- BNB — bruiser
-- XRP — swarm runner
-- Dogecoin — chaos splitter; on death it can split into XRP runners
-- USDT — healer/support
-- Cardano — caster-style unit
-- Avalanche — impact unit
-- TRON — fast raider
+- **SerhiiChoGames/tower-defense** (MIT): Phaser scene/model separation and tower-defense entity organization.
+- **boxops/tower_defense_js** (Apache-2.0): wave countdown / early-send concepts, spawn scheduling, normalized route progress and projectile/status separation.
 
-Coin enemies now use recognizable **vector logo-style marks** plus legs, arms, health bars, role labels, shield/heal/armor effects, and movement animation.
+See `THIRD_PARTY_NOTICES.md`.
 
-## Current hero roster
+## Branch
 
-- PENGU
-- UTYA
-- TEDDY
-- YODA
-- Egor
-- telegram.dog
-- virus
-- Baby Shark
-- yaya
-- Gramcat
-- Memegram
-- NOCTIS VEYL
-
-**VOLYA** is permanently positioned beside the GRAM Core as the main guardian.
-
-The hero art from the supplied character set is packed into:
-
-`assets/heroes/hero-sheet.webp`
-
-and is used in the battlefield and hero deck.
-
-## Gameplay implemented
-
-- large mobile-first battlefield
-- 5 waves with build phase between waves
-- hero deployment directly on the battlefield
-- hero movement, target acquisition, ranged/melee attacks, attack squash animation
-- hero slots expand from 3 to 5 through wave progression
-- 8 towers:
-  - Ranger
-  - Arcane
-  - Bombard
-  - Guardian
-  - Frost
-  - Tesla
-  - Venom
-  - Beacon
-- different animated tower silhouettes per tower type
-- Beacon aura buff to nearby towers
-- tower upgrades to Level 4 with visible geometry changes
-- second mod slot at Level 3
-- tower mods:
-  - Rapid Core
-  - Crit Scope
-  - Venom Tip
-  - Cryo Core
-  - Blast Shell
-  - Chain Coil
-- Tactical Powers:
-  - Bombard
-  - Laser
-  - Gravity
-  - Reinforce
-  - Overdrive
-- armor, shield, poison, slow, crit, splash, chain lightning, healing, dash and splitting enemy behaviors
-- collapsible bottom deck to maximize battlefield size
-
-## Local run
-
-```bash
-npm install
-npm start
-```
-
-Then open `http://localhost:3000`.
-
-## Railway-ready
-
-A `railway.toml` and npm start command are included, so this branch can be deployed directly as a static game service.
-
-## Current branch
-
-```
-volya-game-v06
-```
-
-The branch name remains v06 so the existing review link is preserved; the current code on that branch is the **v0.7 art/gameplay pass**.
-
-## Commercial art note
-
-The crypto enemy designs are stylized game characters. Before final commercial release, exact brand/logo usage should receive a final trademark/brand-guideline review.
+`volya-game-v08`
