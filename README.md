@@ -1,83 +1,108 @@
-# VOLYA: Gram Defense — v0.6
+# VOLYA: Gram Defense — v0.7 Art & Gameplay Pass
 
-A mobile-first tower-defense prototype built with **Phaser 3**.
+Mobile-first tower defense built with **Phaser 3**.
 
-## Core fantasy
+## Core idea
 
-You are defending the **GRAM Core**. Enemy waves are stylized versions of well-known crypto coins, while the VOLYA roster and defensive towers protect GRAM.
+You defend the **GRAM Core** with VOLYA, deployable heroes, defensive towers, tower mod cards, and tactical powers.
 
-### Enemy coin roles
+The enemy waves are stylized, animated crypto-creatures inspired by recognizable coin identities. GRAM itself is never an enemy.
 
-- **Bitcoin (BTC)** — heavy tank, high HP and armor
-- **Ethereum (ETH)** — shielded enemy
-- **Solana (SOL)** — fast runner / dash unit
-- **BNB** — bruiser
-- **XRP** — swarm unit
-- **Dogecoin (DOGE)** — chaos unit
-- **USDT** — healer/support
-- **Cardano (ADA)** — caster
-- **Avalanche (AVAX)** — impact unit
-- **TRON (TRX)** — fast raider
+## Current enemy roster
 
-GRAM is **not** an enemy. It is the Core you are protecting.
+- Bitcoin — heavy tank with armor
+- Ethereum — shield unit
+- Solana — dash runner
+- BNB — bruiser
+- XRP — swarm runner
+- Dogecoin — chaos splitter; on death it can split into XRP runners
+- USDT — healer/support
+- Cardano — caster-style unit
+- Avalanche — impact unit
+- TRON — fast raider
 
-## Current gameplay
+Coin enemies now use recognizable **vector logo-style marks** plus legs, arms, health bars, role labels, shield/heal/armor effects, and movement animation.
 
-- 8 tower types: Ranger, Arcane, Bombard, Guardian, Frost, Tesla, Venom, Beacon
-- 12 deployable heroes:
-  - PENGU
-  - UTYA
-  - TEDDY
-  - YODA
-  - Egor
-  - telegram.dog
-  - virus
-  - Baby Shark
-  - yaya
-  - Gramcat
-  - Memegram
-  - NOCTIS VEYL
-- Hero slots expand during progression
-- 6 tower mod cards
-- Tower upgrades up to Level 4
-- Second mod slot unlocks at Level 3
-- Tactical powers: Bombard, Laser, Gravity, Reinforce, Overdrive
-- Five enemy waves
-- Build phase before each wave
-- Collapsible deck for a larger battlefield on mobile
+## Current hero roster
 
-## Run locally
+- PENGU
+- UTYA
+- TEDDY
+- YODA
+- Egor
+- telegram.dog
+- virus
+- Baby Shark
+- yaya
+- Gramcat
+- Memegram
+- NOCTIS VEYL
 
-Because the project loads JavaScript modules, serve it over HTTP instead of opening `index.html` directly.
+**VOLYA** is permanently positioned beside the GRAM Core as the main guardian.
+
+The hero art from the supplied character set is packed into:
+
+`assets/heroes/hero-sheet.webp`
+
+and is used in the battlefield and hero deck.
+
+## Gameplay implemented
+
+- large mobile-first battlefield
+- 5 waves with build phase between waves
+- hero deployment directly on the battlefield
+- hero movement, target acquisition, ranged/melee attacks, attack squash animation
+- hero slots expand from 3 to 5 through wave progression
+- 8 towers:
+  - Ranger
+  - Arcane
+  - Bombard
+  - Guardian
+  - Frost
+  - Tesla
+  - Venom
+  - Beacon
+- different animated tower silhouettes per tower type
+- Beacon aura buff to nearby towers
+- tower upgrades to Level 4 with visible geometry changes
+- second mod slot at Level 3
+- tower mods:
+  - Rapid Core
+  - Crit Scope
+  - Venom Tip
+  - Cryo Core
+  - Blast Shell
+  - Chain Coil
+- Tactical Powers:
+  - Bombard
+  - Laser
+  - Gravity
+  - Reinforce
+  - Overdrive
+- armor, shield, poison, slow, crit, splash, chain lightning, healing, dash and splitting enemy behaviors
+- collapsible bottom deck to maximize battlefield size
+
+## Local run
 
 ```bash
-python -m http.server 8000
+npm install
+npm start
 ```
 
-Then open:
+Then open `http://localhost:3000`.
 
-```
-http://localhost:8000
-```
+## Railway-ready
 
-For phone testing, serve it on the same Wi-Fi network and open the computer's local IP on the phone.
+A `railway.toml` and npm start command are included, so this branch can be deployed directly as a static game service.
 
-## Branch
-
-Current rebuild branch:
+## Current branch
 
 ```
 volya-game-v06
 ```
 
-## Next art pass
+The branch name remains v06 so the existing review link is preserved; the current code on that branch is the **v0.7 art/gameplay pass**.
 
-The current GitHub version is structured so the next iteration can replace the vector/token placeholders with:
-- the final 3D hero sprites,
-- animated tower art,
-- more detailed coin-enemy characters,
-- custom VFX and sound,
-- map artwork,
-- GRAM branding art.
+## Commercial art note
 
-> Prototype note: coin names and symbols are used as recognizable references for testing. Before a commercial release, brand/trademark usage should be reviewed and, where useful, converted into original stylized designs.
+The crypto enemy designs are stylized game characters. Before final commercial release, exact brand/logo usage should receive a final trademark/brand-guideline review.
