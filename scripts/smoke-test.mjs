@@ -3,11 +3,12 @@ import { PathRoute } from '../src/core/PathRoute.js';
 import { WaveManager } from '../src/core/WaveManager.js';
 
 const route = new PathRoute([{x:0,y:0},{x:100,y:0},{x:100,y:100}]);
-assert.equal(Math.round(route.length), 200, 'route length');
-assert.deepEqual(route.pointAt(0), {x:0,y:0});
-assert.deepEqual(route.pointAt(1), {x:100,y:100});
-const mid=route.pointAt(.5);
+assert.equal(Math.round(route.totalLength), 200, 'route length');
+assert.deepEqual(route.getPosition(0), {x:0,y:0});
+assert.deepEqual(route.getPosition(1), {x:100,y:100});
+const mid=route.getPosition(.5);
 assert.ok(Math.abs(mid.x-100)<.001 && Math.abs(mid.y)<.001, 'route midpoint');
+assert.ok(Number.isFinite(route.getAngle(.5)), 'route angle is finite');
 
 const events=[];
 const scene={
