@@ -1,13 +1,15 @@
 export class WaveManager {
-  constructor(waves, buildDelay=15, spawnInterval=.65) {
+  constructor(waves, buildDelay=15, spawnInterval=.65, clearGrace=.3) {
     this.waves=Array.isArray(waves) ? waves : [];
     this.buildDelay=Math.max(0,buildDelay);
     this.spawnInterval=Math.max(.05,spawnInterval);
+    this.clearGrace=Math.max(0,clearGrace);
     this.active=false;
     this.countdown=this.buildDelay;
     this.waveIndex=0;
     this.spawnIndex=0;
     this.spawnTimer=0;
+    this.clearTimer=0;
     this.finished=this.waves.length===0;
   }
   get waveNumber(){ return this.waves.length ? Math.min(this.waves.length,this.waveIndex+1) : 0; }
@@ -18,6 +20,7 @@ export class WaveManager {
     this.active=true;
     this.spawnIndex=0;
     this.spawnTimer=.25;
+    this.clearTimer=0;
     scene.onWaveStarted?.(this.waveNumber);
   }
   update(dt,scene){
@@ -36,7 +39,10 @@ export class WaveManager {
     }
     const livingEnemies=Array.isArray(scene.enemies) ? scene.enemies.some(e=>e && !e.dead) : false;
     if (this.spawnIndex >= wave.length && !livingEnemies) {
+      this.clearTimer += dt;
+      if (this.clearTimer < this.clearGrace) return;
       this.active=false;
+      this.clearTimer=0;
       if (this.waveIndex >= this.waves.length-1) {
         this.finished=true;
         scene.showVictory?.();
@@ -45,6 +51,8 @@ export class WaveManager {
       this.waveIndex++;
       this.countdown=this.buildDelay;
       scene.onBuildPhase?.(this.waveNumber);
+    } else {
+      this.clearTimer=0;
     }
   }
 }
