@@ -1,4 +1,4 @@
-const STORAGE_KEY="gram_defenders_meta_v1";
+const STORAGE_KEY="gram_defenders_meta_v2";
 
 export const HERO_BLUEPRINTS=Object.freeze({
   VOLYA:Object.freeze({
@@ -29,6 +29,18 @@ export const META_RULES=Object.freeze({
   currencies:Object.freeze(["coins","gems","materials"])
 });
 
+export const STAGE_REWARD_RULES=Object.freeze({
+  firstClearCoinsBase:100,
+  firstClearCoinsPerStage:25,
+  firstClearMaterialsBase:3,
+  replayCoinsBase:20,
+  replayCoinsPerStage:5,
+  perfectBonusCoinsBase:50,
+  perfectBonusCoinsPerStage:10,
+  perfectBonusMaterials:2,
+  perfectBonusGems:1
+});
+
 function defaultState(){
   return {
     wallet:{coins:1500,gems:50,materials:30},
@@ -44,19 +56,24 @@ function defaultState(){
       ENERGY:{unlocked:false,level:1},
       BOMB:{unlocked:false,level:1},
       CONTROL:{unlocked:false,level:1}
-    }
+    },
+    rewardClaims:{}
   };
 }
 
 function clampLevel(value){
   return Math.max(1,Math.min(META_RULES.maxPrototypeLevel,Math.floor(Number(value)||1)));
 }
+function clampWalletValue(value,fallback=0){
+  const n=Number(value);
+  return Math.max(0,Math.floor(Number.isFinite(n)?n:fallback));
+}
 function normalize(raw){
   const base=defaultState(),value=raw||{};
   const wallet={
-    coins:Math.max(0,Math.floor(Number(value.wallet?.coins??base.wallet.coins))),
-    gems:Math.max(0,Math.floor(Number(value.wallet?.gems??base.wallet.gems))),
-    materials:Math.max(0,Math.floor(Number(value.wallet?.materials??base.wallet.materials)))
+    coins:clampWalletValue(value.wallet?.coins,base.wallet.coins),
+    gems:clampWalletValue(value.wallet?.gems,base.wallet.gems),
+    materials:clampWalletValue(value.wallet?.materials,base.wallet.materials)
   };
   const heroes={};
   for(const id of Object.keys(HERO_BLUEPRINTS)){
@@ -81,12 +98,32 @@ function normalize(raw){
     const id=value.towerDeck?.[i];
     return towers[id]?.unlocked?id:(i===0?"PULSE":null);
   });
-  return {wallet,heroSquad,towerDeck,heroes,towers};
+  const rewardClaims={};
+  for(const [stageId,claim] of Object.entries(value.rewardClaims||{})){
+    const stage=Math.floor(Number(stageId));
+    if(!Number.isInteger(stage)||stage<1)continue;
+    rewardClaims[stage]={
+      firstClear:Boolean(claim?.firstClear),
+      perfectBonus:Boolean(claim?.perfectBonus)
+    };
+  }
+  return {wallet,heroSquad,towerDeck,heroes,towers,rewardClaims};
+}
+function readLegacy(){
+  for(const key of ["gram_defenders_meta_v1"]){
+    try{
+      const raw=localStorage.getItem(key);
+      if(raw)return JSON.parse(raw);
+    }catch{}
+  }
+  return null;
 }
 function read(){
   try{
     const raw=localStorage.getItem(STORAGE_KEY);
-    return normalize(raw?JSON.parse(raw):null);
+    if(raw)return normalize(JSON.parse(raw));
+    const legacy=readLegacy();
+    return normalize(legacy);
   }catch{return defaultState();}
 }
 function write(state){
@@ -96,7 +133,14 @@ function write(state){
 }
 
 export function getMetaState(){return read();}
-export function resetMeta(){const state=defaultState();try{localStorage.removeItem(STORAGE_KEY);}catch{}return write(state);}
+export function resetMeta(){
+  const state=defaultState();
+  try{
+    localStorage.removeItem(STORAGE_KEY);
+    localStorage.removeItem("gram_defenders_meta_v1");
+  }catch{}
+  return write(state);
+}
 
 export function getHeroUpgradeCost(id){
   const state=read(),entry=state.heroes[id];
@@ -171,4 +215,50 @@ export function equipTower(id,slot){
   state.towerDeck=state.towerDeck.map(x=>x===id?null:x);
   state.towerDeck[index]=id;
   return write(state);
+}
+
+function emptyReward(){return {coins:0,gems:0,materials:0,firstClear:false,perfectBonus:false};}
+export function previewStageReward(stageId,stars=1){
+  const stage=Math.max(1,Math.floor(Number(stageId)||1));
+  const rating=Math.max(0,Math.min(3,Math.floor(Number(stars)||0)));
+  if(rating<1)return emptyReward();
+
+  const state=read(),claim=state.rewardClaims[stage]||{firstClear:false,perfectBonus:false};
+  const reward=emptyReward();
+
+  if(!claim.firstClear){
+    reward.coins=STAGE_REWARD_RULES.firstClearCoinsBase+stage*STAGE_REWARD_RULES.firstClearCoinsPerStage;
+    reward.materials=STAGE_REWARD_RULES.firstClearMaterialsBase+Math.ceil(stage/2);
+    reward.firstClear=true;
+  }else{
+    reward.coins=STAGE_REWARD_RULES.replayCoinsBase+stage*STAGE_REWARD_RULES.replayCoinsPerStage;
+    reward.materials=stage>=5?2:1;
+  }
+
+  if(rating===3&&!claim.perfectBonus){
+    reward.coins+=STAGE_REWARD_RULES.perfectBonusCoinsBase+stage*STAGE_REWARD_RULES.perfectBonusCoinsPerStage;
+    reward.materials+=STAGE_REWARD_RULES.perfectBonusMaterials;
+    reward.gems+=STAGE_REWARD_RULES.perfectBonusGems;
+    reward.perfectBonus=true;
+  }
+  return reward;
+}
+
+export function grantStageReward(stageId,stars=1){
+  const stage=Math.max(1,Math.floor(Number(stageId)||1));
+  const rating=Math.max(0,Math.min(3,Math.floor(Number(stars)||0)));
+  if(rating<1)return {ok:false,reward:emptyReward(),state:read()};
+
+  const state=read(),claim=state.rewardClaims[stage]||{firstClear:false,perfectBonus:false};
+  const reward=previewStageReward(stage,rating);
+
+  state.wallet.coins+=reward.coins;
+  state.wallet.materials+=reward.materials;
+  state.wallet.gems+=reward.gems;
+  state.rewardClaims[stage]={
+    firstClear:claim.firstClear||reward.firstClear,
+    perfectBonus:claim.perfectBonus||reward.perfectBonus
+  };
+
+  return {ok:true,reward,state:write(state)};
 }
