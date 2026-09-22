@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="description" content="GRAM Defenders Land 01 stage progression.">
+  <title>GRAM Defenders — Land 01</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <main class="shell levels-shell">
+    <header>
+      <div>
+        <p class="eyebrow">LAND 01 · STAGE PROGRESSION</p>
+        <h1>GRAM DEFENDERS</h1>
+      </div>
+      <div class="hud"><span id="progress-summary">Stage 1 unlocked</span></div>
+    </header>
+
+    <section class="levels-panel">
+      <div class="levels-heading">
+        <div>
+          <h2>Land 01</h2>
+          <p>Stages unlock one by one. Clear the current stage to open the next.</p>
+        </div>
+        <button id="reset-progress" class="secondary">Reset test progress</button>
+      </div>
+      <div id="stage-grid" class="stage-grid"></div>
+    </section>
+  </main>
+  <script type="module" src="src/levels.mjs"></script>
+</body>
+</html>
