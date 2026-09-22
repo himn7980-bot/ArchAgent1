@@ -1,5 +1,6 @@
-import { BASE_ENEMIES, distance, getStageConfig, getTowerStats, samplePathWithOffset } from "./late-stage-config.mjs";
+import { BASE_ENEMIES, distance, getStageConfig, getTowerStats as getBaseTowerStats, samplePathWithOffset } from "./late-stage-config.mjs";
 import { STAGE_RATING, getStageStars } from "./stage-rating.mjs";
+import { applyHeroDefense, createBattleMeta, getEffectiveTowerStats, getHeroAttackDamage } from "./battle-meta.mjs";
 
 const LANE_OFFSETS=Object.freeze([-1.05,-.55,0,.55,1.05]);
 
@@ -25,10 +26,10 @@ function spendEnergy(game,amount){if(game.energy<amount)return false;game.energy
 function upgradeCost(cfg,nextLevel){return cfg.upgradeCosts[nextLevel]??Infinity;}
 
 export function createGame(stageId){
-  const cfg=getStageConfig(stageId),start={x:-7,z:3};
-  return {stageId:cfg.id,status:"ready",leaks:0,stars:null,mainBossEscaped:false,wave:0,enemies:[],spawnQueue:[],spawnTimer:0,nextEnemyId:1,
+  const cfg=getStageConfig(stageId),start={x:-7,z:3},battleMeta=createBattleMeta();
+  return {stageId:cfg.id,battleMeta,status:"ready",leaks:0,stars:null,mainBossEscaped:false,wave:0,enemies:[],spawnQueue:[],spawnTimer:0,nextEnemyId:1,
     energy:cfg.startEnergy,lastEnergyGain:0,lastWaveBonus:0,
-    hero:{position:{...start},anchor:{...start},manualDestination:null,targetId:null,state:"guard",health:500,cooldown:0,skillCooldown:0,downTimer:0},
+    hero:{position:{...start},anchor:{...start},manualDestination:null,targetId:null,state:"guard",health:battleMeta.hero.hp,maxHealth:battleMeta.hero.hp,critCharge:0,lastAttackCrit:false,lastDamageTaken:0,cooldown:0,skillCooldown:0,downTimer:0},
     towers:[]};
 }
 export function canBuildTower(game,slotId){
@@ -87,7 +88,7 @@ export function useHeroSkill(game){
   if(game.status!=="playing"||game.hero.state==="relocating"||game.hero.downTimer>0||game.hero.skillCooldown>0)return false;
   const targets=game.enemies.filter(e=>distance(e.position,game.hero.position)<=2.6);
   if(!targets.length)return false;
-  for(const t of targets)applyDamage(t,100,"hero");
+  for(const t of targets)applyDamage(t,game.battleMeta.hero.skillDamage,"hero");
   game.hero.skillCooldown=10;return true;
 }
 function spawnEnemy(game,typeId){
@@ -120,7 +121,7 @@ function updateHeroAI(game,dt){
 function updateRespawn(game,dt){
   if(game.hero.downTimer<=0)return;
   game.hero.downTimer=Math.max(0,game.hero.downTimer-dt);
-  if(game.hero.downTimer===0){game.hero.health=500;game.hero.position={...game.hero.anchor};game.hero.manualDestination=null;game.hero.targetId=null;game.hero.state="guard";}
+  if(game.hero.downTimer===0){game.hero.health=game.hero.maxHealth;game.hero.position={...game.hero.anchor};game.hero.manualDestination=null;game.hero.targetId=null;game.hero.state="guard";}
 }
 function moveEnemy(game,enemy,type,dt){
   const cfg=getStageConfig(game.stageId),ratio=enemy.health/enemy.maxHealth;
@@ -128,8 +129,12 @@ function moveEnemy(game,enemy,type,dt){
   enemy.progress+=type.speed*mult*dt;enemy.position=samplePathWithOffset(cfg.map,enemy.progress,enemy.laneOffset);
 }
 function nearestTarget(enemies,origin,range){return enemies.filter(e=>distance(e.position,origin)<=range).sort((a,b)=>b.progress-a.progress)[0];}
+export function getTowerStats(level,game=null){
+  const base=getBaseTowerStats(level);
+  return game?getEffectiveTowerStats(game,level,base):base;
+}
 function towerAttack(game,tower,enemies,origin,dt){
-  const stats=getTowerStats(tower.level);tower.cooldown=Math.max(0,tower.cooldown-dt);if(tower.cooldown>0)return null;
+  const stats=getTowerStats(tower.level,game);tower.cooldown=Math.max(0,tower.cooldown-dt);if(tower.cooldown>0)return null;
   const target=nearestTarget(enemies,origin,stats.range);if(!target)return null;
   applyDamage(target,stats.damage,"tower");tower.cooldown=stats.cooldown;return target;
 }
@@ -160,7 +165,7 @@ export function updateGame(game,dt){
       if(canShoot){
         e.engaged=true;e.engagement="ranged";
         if(e.attackCooldown<=0){
-          game.hero.health-=type.damage;
+          applyHeroDefense(game,type.damage);
           const ratio=e.health/e.maxHealth;
           e.attackCooldown=type.enrageBelow!=null&&ratio<=type.enrageBelow?(type.enrageAttackCooldown??type.attackCooldown):type.attackCooldown;
         }
@@ -172,7 +177,7 @@ export function updateGame(game,dt){
     if(melee){
       e.engaged=true;e.engagement="melee";
       if(e.attackCooldown<=0){
-        game.hero.health-=type.damage;
+        applyHeroDefense(game,type.damage);
         const ratio=e.health/e.maxHealth;
         e.attackCooldown=type.enrageBelow!=null&&ratio<=type.enrageBelow?(type.enrageAttackCooldown??type.attackCooldown):type.attackCooldown;
       }
@@ -182,7 +187,7 @@ export function updateGame(game,dt){
   if(heroActive&&game.hero.targetId&&game.hero.state!=="relocating"){
     const t=game.enemies.find(e=>e.id===game.hero.targetId&&e.health>0);
     game.hero.cooldown=Math.max(0,game.hero.cooldown-step);
-    if(t&&distance(t.position,game.hero.position)<=1.18&&game.hero.cooldown<=0){applyDamage(t,48,"hero");game.hero.cooldown=.72;}
+    if(t&&distance(t.position,game.hero.position)<=1.18&&game.hero.cooldown<=0){applyDamage(t,getHeroAttackDamage(game),"hero");game.hero.cooldown=game.battleMeta.hero.cooldown;}
   }else game.hero.cooldown=Math.max(0,game.hero.cooldown-step);
 
   for(const tower of game.towers){
@@ -219,4 +224,4 @@ export function updateGame(game,dt){
   return game;
 }
 
-export { BASE_ENEMIES, distance, getStageConfig, getTowerStats };
+export { BASE_ENEMIES, distance, getStageConfig };
