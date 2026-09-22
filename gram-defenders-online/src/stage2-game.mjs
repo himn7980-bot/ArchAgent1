@@ -1,5 +1,6 @@
 import { MAP, distance, samplePathWithOffset } from "./stage2-map.mjs";
 import { STAGE_RATING, getStageStars } from "./stage-rating.mjs";
+import { applyHeroDefense, createBattleMeta, getEffectiveTowerStats, getHeroAttackDamage } from "./battle-meta.mjs";
 
 export const ENEMY_TYPES = Object.freeze({
   scout: Object.freeze({ id:"scout", label:"Scout", combat:"melee", health:95, speed:0.026, damage:10, attackCooldown:1.05, interceptRange:1.55 }),
@@ -44,8 +45,9 @@ function clampPoint(point){
 }
 export function createGame(){
   const start={x:-7.5,z:3.4};
-  return {status:"ready",leaks: 0, stars: null, wave:0,enemies:[],spawnQueue:[],spawnTimer:0,nextEnemyId:1,
-    hero:{position:{...start},anchor:{...start},manualDestination:null,targetId:null,state:"guard",health:CONFIG.heroMaxHealth,cooldown:0,skillCooldown:0,downTimer:0},
+  const battleMeta=createBattleMeta();
+  return {battleMeta,status:"ready",leaks: 0, stars: null, wave:0,enemies:[],spawnQueue:[],spawnTimer:0,nextEnemyId:1,
+    hero:{position:{...start},anchor:{...start},manualDestination:null,targetId:null,state:"guard",health:battleMeta.hero.hp,maxHealth:battleMeta.hero.hp,critCharge:0,lastAttackCrit:false,lastDamageTaken:0,cooldown:0,skillCooldown:0,downTimer:0},
     towers:[]};
 }
 export function buildTower(game,slotId){
@@ -81,7 +83,7 @@ export function useHeroSkill(game){
   if(game.status!=="playing"||game.hero.state==="relocating"||game.hero.downTimer>0||game.hero.skillCooldown>0)return false;
   const targets=game.enemies.filter(e=>distance(e.position,game.hero.position)<=CONFIG.heroSkillRadius);
   if(!targets.length)return false;
-  for(const t of targets)t.health-=CONFIG.heroSkillDamage;
+  for(const t of targets)t.health-=game.battleMeta.hero.skillDamage;
   game.hero.skillCooldown=CONFIG.heroSkillCooldown; return true;
 }
 function spawnEnemy(game,typeId){
@@ -108,19 +110,20 @@ function updateHeroAI(game,dt){
 function updateRespawn(game,dt){
   if(game.hero.downTimer<=0)return;
   game.hero.downTimer=Math.max(0,game.hero.downTimer-dt);
-  if(game.hero.downTimer===0){game.hero.health=CONFIG.heroMaxHealth;game.hero.position={...game.hero.anchor};game.hero.manualDestination=null;game.hero.targetId=null;game.hero.state="guard";}
+  if(game.hero.downTimer===0){game.hero.health=game.hero.maxHealth;game.hero.position={...game.hero.anchor};game.hero.manualDestination=null;game.hero.targetId=null;game.hero.state="guard";}
 }
 function moveEnemy(enemy,type,dt){enemy.progress+=type.speed*dt;enemy.position=samplePathWithOffset(enemy.progress,enemy.laneOffset);}
 function nearestTarget(enemies,origin,range){return enemies.filter(e=>distance(e.position,origin)<=range).sort((a,b)=>b.progress-a.progress)[0];}
-function towerAttack(tower,enemies,origin,dt){
-  const stats=TOWER_LEVELS[tower.level];
+function towerAttack(game,tower,enemies,origin,dt){
+  const base=TOWER_LEVELS[tower.level];
+  const stats=getEffectiveTowerStats(game,tower.level,base);
   tower.cooldown=Math.max(0,tower.cooldown-dt);
   if(tower.cooldown>0)return null;
   const target=nearestTarget(enemies,origin,stats.range);
   if(!target)return null;
   target.health-=stats.damage;tower.cooldown=stats.cooldown;return target;
 }
-export function getTowerStats(level){ return TOWER_LEVELS[Math.max(1,Math.min(CONFIG.maxTowerLevel,level))]; }
+export function getTowerStats(level,game=null){const base=TOWER_LEVELS[Math.max(1,Math.min(CONFIG.maxTowerLevel,level))];return game?getEffectiveTowerStats(game,level,base):base;}
 
 export function updateGame(game,dt){
   const step=Math.max(0,Math.min(dt,.1)); if(game.status==="won"||game.status==="lost")return game;
@@ -133,20 +136,20 @@ export function updateGame(game,dt){
     const type=ENEMY_TYPES[e.type];e.attackCooldown=Math.max(0,e.attackCooldown-step);e.engaged=false;e.engagement=null;
     if(type.combat==="ranged"){
       const canShoot=heroActive&&distance(e.position,game.hero.position)<=type.attackRange;
-      if(canShoot){e.engaged=true;e.engagement="ranged";if(e.attackCooldown<=0){game.hero.health-=type.damage;e.attackCooldown=type.attackCooldown;}}
+      if(canShoot){e.engaged=true;e.engagement="ranged";if(e.attackCooldown<=0){applyHeroDefense(game,type.damage);e.attackCooldown=type.attackCooldown;}}
       else moveEnemy(e,type,step);continue;
     }
     const locked=heroActive&&game.hero.targetId===e.id&&game.hero.state!=="relocating";
     const melee=locked&&distance(e.position,game.hero.position)<=type.interceptRange;
-    if(melee){e.engaged=true;e.engagement="melee";if(e.attackCooldown<=0){game.hero.health-=type.damage;e.attackCooldown=type.attackCooldown;}}
+    if(melee){e.engaged=true;e.engagement="melee";if(e.attackCooldown<=0){applyHeroDefense(game,type.damage);e.attackCooldown=type.attackCooldown;}}
     else moveEnemy(e,type,step);
   }
   if(heroActive&&game.hero.targetId&&game.hero.state!=="relocating"){
     const t=game.enemies.find(e=>e.id===game.hero.targetId&&e.health>0);
     game.hero.cooldown=Math.max(0,game.hero.cooldown-step);
-    if(t&&distance(t.position,game.hero.position)<=CONFIG.heroRange&&game.hero.cooldown<=0){t.health-=CONFIG.heroDamage;game.hero.cooldown=CONFIG.heroCooldown;}
+    if(t&&distance(t.position,game.hero.position)<=CONFIG.heroRange&&game.hero.cooldown<=0){t.health-=getHeroAttackDamage(game);game.hero.cooldown=game.battleMeta.hero.cooldown;}
   }else game.hero.cooldown=Math.max(0,game.hero.cooldown-step);
-  for(const tower of game.towers){const pos=MAP.towerSlots.find(s=>s.id===tower.slotId);towerAttack(tower,game.enemies,pos,step);}
+  for(const tower of game.towers){const pos=MAP.towerSlots.find(s=>s.id===tower.slotId);towerAttack(game,tower,game.enemies,pos,step);}
   const deadTarget=game.hero.targetId&&game.enemies.some(e=>e.id===game.hero.targetId&&e.health<=0);
   game.enemies=game.enemies.filter(e=>{if(e.health<=0)return false;if(e.progress>=1){game.leaks += 1;return false;}return true;});
   if(deadTarget||(game.hero.targetId&&!game.enemies.some(e=>e.id===game.hero.targetId))){game.hero.targetId=null;if(game.hero.state==="fighting"||game.hero.state==="chasing")game.hero.state="returning";}
