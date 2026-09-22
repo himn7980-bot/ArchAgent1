@@ -55,3 +55,10 @@ footer p { width:100%; margin:0; color:#90a9bc; font-size:12px; text-align:cente
 .stage-lock { margin-top:auto; color:#8ea3b4; font-weight:800; font-size:12px; }
 @media (max-width:900px){ .stage-grid{grid-template-columns:repeat(2,minmax(0,1fr));} }
 @media (max-width:560px){ .stage-grid{grid-template-columns:1fr}.levels-heading{align-items:flex-start;flex-direction:column}.levels-heading button{width:100%} }
+
+.boss-hud { position:absolute; left:50%; top:18px; transform:translateX(-50%); width:min(520px,82%); padding:10px 12px; border:1px solid #b77cff; border-radius:13px; background:#100b1de8; box-shadow:0 10px 40px #0009,0 0 22px #8f6dff33; z-index:5; }
+.boss-title { display:flex; justify-content:space-between; gap:12px; align-items:center; margin-bottom:7px; font-size:12px; letter-spacing:.08em; }
+.boss-title strong { color:#f3e8ff; }
+.boss-title span { color:#d9b7ff; font-size:10px; font-weight:900; }
+.boss-track { height:10px; border-radius:99px; overflow:hidden; background:#21172e; border:1px solid #583c73; }
+.boss-fill { height:100%; width:100%; background:linear-gradient(90deg,#8f6dff,#e264ff); transition:width .12s linear; }
