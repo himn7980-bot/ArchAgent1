@@ -1,6 +1,7 @@
 export const STAGE_RATING = Object.freeze({
   maxLeaks: 10,
-  twoStarMaxLeaks: 5
+  twoStarMaxLeaks: 5,
+  unlockStars: 3
 });
 
 export function getStageStars(leaks) {
@@ -14,4 +15,9 @@ export function getStageStars(leaks) {
 export function formatStars(stars) {
   const value = Math.max(0, Math.min(3, Number(stars) || 0));
   return "★".repeat(value) + "☆".repeat(3 - value);
+}
+
+
+export function unlocksNextStage(stars) {
+  return Number(stars) === STAGE_RATING.unlockStars;
 }
