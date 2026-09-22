@@ -9,6 +9,7 @@ const heroLabel = document.querySelector("#hero-hp");
 const message = document.querySelector("#message");
 const startButton = document.querySelector("#start");
 const skillButton = document.querySelector("#hero-skill");
+const speedButton = document.querySelector("#game-speed");
 const towerCard = document.querySelector("#tower-card");
 const removeButton = document.querySelector("#remove-tower");
 const buildStatus = document.querySelector("#build-status");
@@ -17,6 +18,9 @@ let last = performance.now();
 let towerMode = "build";
 let selectedSlotId = null;
 let pulseFxUntil = 0;
+const SPEED_STEPS = [1, 2, 3];
+let speedIndex = 0;
+let gameSpeed = SPEED_STEPS[speedIndex];
 
 const iso = ({ x, z }) => ({ x: canvas.width / 2 + (x - z) * 27, y: 334 + (x + z) * 13.5 });
 const unIso = (px, py) => {
@@ -195,7 +199,23 @@ function updateUi() {
   message.textContent = game.status === "won" ? "VICTORY — Map 01 secured." : game.status === "lost" ? "DEFEAT — GRAM Core destroyed." : game.status === "between" ? "Wave cleared. Set VOLYA's guard point and continue." : game.status === "playing" ? "Enemies use lane offsets. Archers can stop and fire from outside VOLYA's guard radius." : "Tap anywhere to set VOLYA's guard point, then start Wave 1.";
 }
 
-function loop(now) { const dt = (now - last) / 1000; last = now; updateGame(game, dt); render(now); updateUi(); requestAnimationFrame(loop); }
+function advanceSimulation(realDt) {
+  let remaining = Math.min(realDt * gameSpeed, 0.5);
+  while (remaining > 0) {
+    const step = Math.min(0.05, remaining);
+    updateGame(game, step);
+    remaining -= step;
+  }
+}
+
+function loop(now) {
+  const dt = (now - last) / 1000;
+  last = now;
+  advanceSimulation(dt);
+  render(now);
+  updateUi();
+  requestAnimationFrame(loop);
+}
 requestAnimationFrame(loop);
 
 function setTowerMode(mode) {
@@ -229,6 +249,13 @@ canvas.addEventListener("pointerdown", (event) => {
 });
 startButton.addEventListener("click", () => startWave(game));
 skillButton.addEventListener("click", () => { if (useHeroSkill(game)) pulseFxUntil = performance.now() + 450; });
+speedButton.addEventListener("click", () => {
+  speedIndex = (speedIndex + 1) % SPEED_STEPS.length;
+  gameSpeed = SPEED_STEPS[speedIndex];
+  speedButton.textContent = `Speed ${gameSpeed}×`;
+  speedButton.classList.toggle("fast", gameSpeed > 1);
+  speedButton.setAttribute("aria-label", `Game speed ${gameSpeed} times`);
+});
 towerCard.addEventListener("click", () => setTowerMode("build"));
 removeButton.addEventListener("click", () => setTowerMode("remove"));
 document.querySelector("#restart").addEventListener("click", () => { game = createGame(); selectedSlotId = null; pulseFxUntil = 0; setTowerMode("build"); last = performance.now(); });
