@@ -1,4 +1,5 @@
 import { applyCompletionFromSearch, getProgress, resetProgress } from "./progression.mjs";
+import { formatStars } from "./stage-rating.mjs";
 
 applyCompletionFromSearch(window.location.search);
 if (window.location.search.includes("completed=")) {
@@ -22,7 +23,7 @@ const resetButton=document.querySelector("#reset-progress");
 
 function render(){
   const progress=getProgress();
-  summary.textContent=`Unlocked through Stage ${progress.unlockedStage} · ${progress.completedStages.length} cleared`;
+  const totalStars=Object.values(progress.bestStars||{}).reduce((sum,value)=>sum+Number(value||0),0);summary.textContent=`Unlocked through Stage ${progress.unlockedStage} · ${progress.completedStages.length} cleared · ${totalStars}★`;
   grid.innerHTML="";
 
   for(const stage of STAGES){
@@ -32,12 +33,14 @@ function render(){
     card.className=`stage-card ${unlocked?"unlocked":"locked"} ${completed?"completed":""}`;
 
     const state=completed?"CLEARED":unlocked?"UNLOCKED":"LOCKED";
+    const stars=progress.bestStars?.[stage.id]||0;
     card.innerHTML=`
       <div class="stage-number">${String(stage.id).padStart(2,"0")}</div>
       <div class="stage-copy">
         <span class="stage-state">${state}</span>
         <h3>${stage.title}</h3>
         <p>${stage.subtitle}</p>
+        <div class="stage-stars ${completed?"earned":""}">${completed?formatStars(stars):"☆☆☆"}</div>
       </div>
     `;
 
