@@ -1,4 +1,5 @@
 import { MAP, distance, samplePathWithOffset } from "./map.mjs";
+import { STAGE_RATING, getStageStars } from "./stage-rating.mjs";
 
 export const ENEMY_TYPES = Object.freeze({
   scout: Object.freeze({
@@ -40,6 +41,7 @@ export const WAVES = Object.freeze([
 ]);
 
 export const CONFIG = Object.freeze({
+  maxLeaks: STAGE_RATING.maxLeaks,
   coreHealth: 4,
   heroMaxHealth: 500,
   heroDamage: 48,
@@ -82,8 +84,7 @@ export function createGame() {
   const start = { x: -7.2, z: 3.8 };
   return {
     status: "ready",
-    coreHealth: CONFIG.coreHealth,
-    wave: 0,
+    leaks: 0, stars: null, wave: 0,
     enemies: [],
     spawnQueue: [],
     spawnTimer: 0,
@@ -343,7 +344,7 @@ export function updateGame(game, dt) {
   game.enemies = game.enemies.filter((enemy) => {
     if (enemy.health <= 0) return false;
     if (enemy.progress >= 1) {
-      game.coreHealth -= 1;
+      game.leaks += 1;
       return false;
     }
     return true;
@@ -361,9 +362,10 @@ export function updateGame(game, dt) {
     game.hero.downTimer = CONFIG.heroRespawnDelay;
   }
 
-  if (game.coreHealth <= 0) game.status = "lost";
+  if(game.leaks>=CONFIG.maxLeaks){game.status="lost";game.stars=0;}
   else if (!game.spawnQueue.length && !game.enemies.length) {
     game.status = game.wave === WAVES.length ? "won" : "between";
+    if (game.status === "won") game.stars = getStageStars(game.leaks);
   }
   return game;
 }
