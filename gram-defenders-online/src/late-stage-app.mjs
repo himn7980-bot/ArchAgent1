@@ -1,7 +1,7 @@
 import { BASE_ENEMIES, buildTower, canBuildTower, canUpgradeTower, createGame, distance, getBossState, getElite, getStageConfig, getTowerStats, getUpgradeCost, moveHero, removeTower, startWave, updateGame, upgradeTower, useHeroSkill } from "./late-stage-game.mjs";
 import { makePath } from "./late-stage-config.mjs";
-import { completeStage, isStageUnlocked } from "./progression.mjs";
-import { STAGE_RATING, formatStars, getStageStars, unlocksNextStage } from "./stage-rating.mjs";
+import { LAND_RULES, completeStage, getLandStars, isNextLandUnlocked, isStageUnlocked } from "./progression.mjs";
+import { STAGE_RATING, formatStars, getStageStars } from "./stage-rating.mjs";
 
 const stageId=Number(document.body.dataset.stage);
 if(!isStageUnlocked(stageId)) window.location.replace("/levels.html");
@@ -53,9 +53,9 @@ function updateUi(){
     completeStage(stageId,game.stars);victoryRecorded=true;
     mapLink.href=`/levels.html?completed=${stageId}&stars=${game.stars}`;
     if(stageId<8){
-      mapLink.textContent=unlocksNextStage(game.stars)?`Continue · Stage ${stageId+1}`:"Land 01 Map · ★★★ required";
+      mapLink.textContent=`Continue · Stage ${stageId+1}`;
     }else{
-      mapLink.textContent=unlocksNextStage(game.stars)?"Land 01 Perfect Clear":"Land 01 Map · ★★★ required";
+      mapLink.textContent=isNextLandUnlocked()?"Land 02 Unlocked · Coming Next":`Land 01 Map · ${getLandStars()}/${LAND_RULES.nextLandStarRequirement}★`;
     }
   }
   if(game.energy!==lastShownEnergy){energyFlashUntil=performance.now()+450;lastShownEnergy=game.energy;}
@@ -73,8 +73,8 @@ function updateUi(){
   const elite=getElite(game);bossHud.hidden=!elite;
   if(elite){const type=BASE_ENEMIES[elite.type],ratio=Math.max(0,elite.health/elite.maxHealth);bossName.textContent=type.label;bossFill.style.width=`${ratio*100}%`;bossState.textContent=getBossState(elite);}
 
-  if(game.status==="won")message.textContent=stageId===8?(unlocksNextStage(game.stars)?`LAND 01 PERFECT CLEAR · ${formatStars(game.stars)} · Main Boss defeated.`:`LAND 01 · ${formatStars(game.stars)} · Get ★★★ for perfect completion.`):(unlocksNextStage(game.stars)?`STAGE ${stageId} COMPLETE · ${formatStars(game.stars)} · Stage ${stageId+1} unlocked.`:`STAGE ${stageId} COMPLETE · ${formatStars(game.stars)} · Get ★★★ to unlock Stage ${stageId+1}.`);
-  else if(game.status==="lost")message.textContent="DEFEAT · 10 enemies escaped.";
+  if(game.status==="won")message.textContent=stageId===8?(isNextLandUnlocked()?`LAND 01 CLEARED · ${formatStars(game.stars)} · ${getLandStars()}/${LAND_RULES.maxStars}★ · Land 02 unlocked.`:`LAND 01 CLEARED · ${formatStars(game.stars)} · ${getLandStars()}/${LAND_RULES.maxStars}★ · Need ${LAND_RULES.nextLandStarRequirement}★ for Land 02.`):`STAGE ${stageId} COMPLETE · ${formatStars(game.stars)} · Stage ${stageId+1} unlocked.`;
+  else if(game.status==="lost")message.textContent=game.mainBossEscaped?"DEFEAT · MAIN BOSS escaped to the Core.":"DEFEAT · 10 enemies escaped.";
   else if(game.status==="between"&&game.lastWaveBonus>0)message.textContent=`Wave cleared · +${game.lastWaveBonus} Energy bonus.`;
   else if(elite)message.textContent=elite.type==="coretyrant"?"CORE TYRANT active — break armor, then survive its enrage phase.":"Elite active — move VOLYA to pressure it while Towers provide support.";
   else if(game.status==="playing")message.textContent=cfg.intro;
