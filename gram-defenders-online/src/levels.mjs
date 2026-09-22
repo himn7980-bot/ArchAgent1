@@ -1,4 +1,4 @@
-import { applyCompletionFromSearch, getProgress, resetProgress } from "./progression.mjs";
+import { LAND_RULES, applyCompletionFromSearch, getLandStars, getProgress, isNextLandUnlocked, resetProgress } from "./progression.mjs";
 import { formatStars } from "./stage-rating.mjs";
 
 applyCompletionFromSearch(window.location.search);
@@ -20,10 +20,21 @@ const STAGES = [
 const grid=document.querySelector("#stage-grid");
 const summary=document.querySelector("#progress-summary");
 const resetButton=document.querySelector("#reset-progress");
+const landGate=document.querySelector("#land-gate");
 
 function render(){
   const progress=getProgress();
-  const totalStars=Object.values(progress.bestStars||{}).reduce((sum,value)=>sum+Number(value||0),0);summary.textContent=`Unlocked through Stage ${progress.unlockedStage} · ${progress.completedStages.length} perfect clears · ${totalStars}★`;
+  const totalStars=getLandStars();
+  summary.textContent=`Unlocked through Stage ${progress.unlockedStage} · ${progress.completedStages.length} cleared · ${totalStars}/${LAND_RULES.maxStars}★`;
+  const bossCleared=progress.completedStages.includes(LAND_RULES.mainBossStage);
+  const nextLandOpen=isNextLandUnlocked();
+  landGate.innerHTML=`
+    <div>
+      <strong>Land 02 Gate</strong>
+      <span>${totalStars}/${LAND_RULES.maxStars}★ collected · need ${LAND_RULES.nextLandStarRequirement}★ + Main Boss clear</span>
+    </div>
+    <b class="${nextLandOpen?"gate-open":"gate-locked"}">${nextLandOpen?"UNLOCKED · COMING NEXT":bossCleared?"MORE STARS REQUIRED":"BOSS CLEAR REQUIRED"}</b>
+  `;
   grid.innerHTML="";
 
   for(const stage of STAGES){
@@ -33,7 +44,7 @@ function render(){
     card.className=`stage-card ${unlocked?"unlocked":"locked"} ${completed?"completed":""}`;
 
     const stars=progress.bestStars?.[stage.id]||0;
-    const state=completed?"PERFECT CLEAR":unlocked?(stars>0?"REPLAY FOR ★★★":"UNLOCKED"):"LOCKED";
+    const state=completed?"CLEARED":unlocked?"UNLOCKED":"LOCKED";
     card.innerHTML=`
       <div class="stage-number">${String(stage.id).padStart(2,"0")}</div>
       <div class="stage-copy">
@@ -48,7 +59,7 @@ function render(){
       const link=document.createElement("a");
       link.className="stage-play";
       link.href=stage.href;
-      link.textContent=completed?"Replay":stars>0?"Replay for ★★★":"Play";
+      link.textContent=completed?"Replay":"Play";
       card.appendChild(link);
     }else{
       const lock=document.createElement("span");
