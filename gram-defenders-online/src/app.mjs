@@ -188,7 +188,15 @@ function render(now) {
 }
 
 function updateUi() {
-  if (game.status === "won" && !victoryRecorded) { completeStage(1); victoryRecorded = true; }
+  if (game.status === "won" && !victoryRecorded) {
+    completeStage(1);
+    victoryRecorded = true;
+    const mapLink = document.querySelector(".stage-link");
+    if (mapLink) {
+      mapLink.href = "/levels.html?completed=1";
+      mapLink.textContent = "Continue · Stage 02";
+    }
+  }
   waveLabel.textContent = `Wave ${game.wave} / ${WAVES.length}`;
   coreLabel.textContent = `Core ${"◆".repeat(Math.max(0, game.coreHealth))}${"◇".repeat(Math.max(0, CONFIG.coreHealth - game.coreHealth))}`;
   heroLabel.textContent = game.hero.downTimer > 0
