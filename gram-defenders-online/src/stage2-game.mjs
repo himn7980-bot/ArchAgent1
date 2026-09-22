@@ -1,4 +1,5 @@
 import { MAP, distance, samplePathWithOffset } from "./stage2-map.mjs";
+import { STAGE_RATING, getStageStars } from "./stage-rating.mjs";
 
 export const ENEMY_TYPES = Object.freeze({
   scout: Object.freeze({ id:"scout", label:"Scout", combat:"melee", health:95, speed:0.026, damage:10, attackCooldown:1.05, interceptRange:1.55 }),
@@ -21,6 +22,7 @@ export const WAVES = Object.freeze([
 ]);
 
 export const CONFIG = Object.freeze({
+  maxLeaks: STAGE_RATING.maxLeaks,
   coreHealth:4, heroMaxHealth:500, heroDamage:48, heroRange:1.18, heroCooldown:0.72,
   heroMoveSpeed:4.2, heroGuardRadius:3.6, heroRespawnDelay:15,
   heroSkillDamage:100, heroSkillRadius:2.6, heroSkillCooldown:10,
@@ -42,7 +44,7 @@ function clampPoint(point){
 }
 export function createGame(){
   const start={x:-7.5,z:3.4};
-  return {status:"ready",coreHealth:CONFIG.coreHealth,wave:0,enemies:[],spawnQueue:[],spawnTimer:0,nextEnemyId:1,
+  return {status:"ready",leaks: 0, stars: null, wave:0,enemies:[],spawnQueue:[],spawnTimer:0,nextEnemyId:1,
     hero:{position:{...start},anchor:{...start},manualDestination:null,targetId:null,state:"guard",health:CONFIG.heroMaxHealth,cooldown:0,skillCooldown:0,downTimer:0},
     towers:[]};
 }
@@ -146,9 +148,15 @@ export function updateGame(game,dt){
   }else game.hero.cooldown=Math.max(0,game.hero.cooldown-step);
   for(const tower of game.towers){const pos=MAP.towerSlots.find(s=>s.id===tower.slotId);towerAttack(tower,game.enemies,pos,step);}
   const deadTarget=game.hero.targetId&&game.enemies.some(e=>e.id===game.hero.targetId&&e.health<=0);
-  game.enemies=game.enemies.filter(e=>{if(e.health<=0)return false;if(e.progress>=1){game.coreHealth-=1;return false;}return true;});
+  game.enemies=game.enemies.filter(e=>{if(e.health<=0)return false;if(e.progress>=1){game.leaks += 1;return false;}return true;});
   if(deadTarget||(game.hero.targetId&&!game.enemies.some(e=>e.id===game.hero.targetId))){game.hero.targetId=null;if(game.hero.state==="fighting"||game.hero.state==="chasing")game.hero.state="returning";}
   if(game.hero.health<=0&&game.hero.downTimer<=0){game.hero.health=0;game.hero.manualDestination=null;game.hero.targetId=null;game.hero.state="down";game.hero.downTimer=CONFIG.heroRespawnDelay;}
-  if(game.coreHealth<=0)game.status="lost";else if(!game.spawnQueue.length&&!game.enemies.length)game.status=game.wave===WAVES.length?"won":"between";
+  if(game.leaks>=CONFIG.maxLeaks){
+    game.status="lost";
+    game.stars=0;
+  }else if(!game.spawnQueue.length&&!game.enemies.length){
+    game.status=game.wave===WAVES.length?"won":"between";
+    if(game.status==="won")game.stars=getStageStars(game.leaks);
+  }
   return game;
 }
