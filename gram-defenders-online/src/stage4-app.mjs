@@ -1,5 +1,5 @@
 import { MAP, PATH, distance } from "./stage4-map.mjs";
-import { formatStars, getStageStars } from "./stage-rating.mjs";
+import { formatStars, getStageStars, unlocksNextStage } from "./stage-rating.mjs";
 import { buildTower, canBuildTower, canUpgradeTower, CONFIG, createGame, ENEMY_TYPES, getElite, getTowerStats, moveHero, removeTower, startWave, updateGame, upgradeTower, useHeroSkill, WAVES } from "./stage4-game.mjs";
 import { completeStage, isStageUnlocked } from "./progression.mjs";
 if (!isStageUnlocked(4)) window.location.replace("/levels.html");
@@ -55,7 +55,7 @@ function render(now){
 }
 
 function updateUi(){
-  if(game.status==="won"&&!victoryRecorded){completeStage(4,game.stars);victoryRecorded=true;const mapLink=document.querySelector(".stage-link");if(mapLink){mapLink.href=`/levels.html?completed=4&stars=${game.stars}`;mapLink.textContent="Continue · Stage 05";}}
+  if(game.status==="won"&&!victoryRecorded){completeStage(4,game.stars);victoryRecorded=true;const mapLink=document.querySelector(".stage-link");if(mapLink){mapLink.href=`/levels.html?completed=4&stars=${game.stars}`;mapLink.textContent=unlocksNextStage(game.stars)?"Continue · Stage 05":"Land 01 Map · ★★★ required";}}
   if(game.energy!==lastShownEnergy){energyFlashUntil=performance.now()+450;lastShownEnergy=game.energy;}
   energyLabel.textContent=`Energy ${game.energy} / ${CONFIG.maxEnergy}`;
   energyLabel.classList.toggle("energy-flash",performance.now()<energyFlashUntil);
@@ -85,7 +85,7 @@ function updateUi(){
     bossFill.style.width=`${ratio*100}%`;
     bossState.textContent=ratio>type.armoredAbove?"ARMORED · TOWER DMG 65%":"ARMOR BROKEN";
   }
-  if(game.status==="won")message.textContent=`STAGE 04 COMPLETE · ${formatStars(game.stars)} · Stage 05 unlocked.`;
+  if(game.status==="won")message.textContent=unlocksNextStage(game.stars)?`STAGE 04 COMPLETE · ${formatStars(game.stars)} · Stage 05 unlocked.`:`STAGE 04 COMPLETE · ${formatStars(game.stars)} · Get ★★★ to unlock Stage 05.`;
   else if(game.status==="lost")message.textContent="DEFEAT · 10 enemies escaped.";
   else if(game.status==="between"&&game.lastWaveBonus>0)message.textContent=`Wave cleared · +${game.lastWaveBonus} Energy bonus · spend before the next wave.`;
   else if(game.status==="playing")message.textContent=getElite(game)?"COREBREAKER active — use VOLYA while its armor weakens Tower damage.":"Survive the waves and prepare Energy for the Mini-Boss.";
