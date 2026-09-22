@@ -1,6 +1,11 @@
-const STORAGE_KEY = "gram_defenders_progress_v2";
-const COOKIE_KEY = "gram_defenders_progress_v2";
+const STORAGE_KEY = "gram_defenders_progress_v3";
+const COOKIE_KEY = "gram_defenders_progress_v3";
 const MAX_STAGE = 8;
+
+function clampStars(value) {
+  const stars = Math.floor(Number(value) || 0);
+  return Math.max(0, Math.min(3, stars));
+}
 
 function normalizeProgress(value) {
   const completedStages = Array.isArray(value?.completedStages)
@@ -13,10 +18,19 @@ function normalizeProgress(value) {
     else break;
   }
 
-  const unlockedStage = Math.min(MAX_STAGE, sequentialCompleted + 1);
+  const validCompleted = completedStages.filter((stage) => stage <= sequentialCompleted);
+  const rawStars = value?.bestStars && typeof value.bestStars === "object" ? value.bestStars : {};
+  const bestStars = {};
+
+  for (const stage of validCompleted) {
+    const stars = clampStars(rawStars[stage] ?? rawStars[String(stage)] ?? 1);
+    bestStars[stage] = Math.max(1, stars);
+  }
+
   return {
-    unlockedStage: Math.max(1, unlockedStage),
-    completedStages: completedStages.filter((stage) => stage <= sequentialCompleted)
+    unlockedStage: Math.max(1, Math.min(MAX_STAGE, sequentialCompleted + 1)),
+    completedStages: validCompleted,
+    bestStars
   };
 }
 
@@ -32,30 +46,37 @@ function readCookie() {
   }
 }
 
-function readLegacyProgress() {
-  let local = null;
+function readStorage(key) {
   try {
-    const raw = localStorage.getItem("gram_defenders_progress_v1");
-    if (raw) local = JSON.parse(raw);
-  } catch {}
-  return local;
+    const raw = localStorage.getItem(key);
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
+}
+
+function mergeProgress(...sources) {
+  const completedStages = [];
+  const bestStars = {};
+
+  for (const source of sources.filter(Boolean)) {
+    for (const stage of source.completedStages || []) completedStages.push(stage);
+    const stars = source.bestStars || {};
+    for (const [stage, value] of Object.entries(stars)) {
+      bestStars[stage] = Math.max(bestStars[stage] || 0, clampStars(value));
+    }
+  }
+
+  return normalizeProgress({ completedStages, bestStars });
 }
 
 function safeRead() {
-  let local = null;
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (raw) local = JSON.parse(raw);
-  } catch {}
-
-  const cookie = readCookie();
-  const legacy = readLegacyProgress();
-  const mergedCompleted = [
-    ...(local?.completedStages || []),
-    ...(cookie?.completedStages || []),
-    ...(legacy?.completedStages || [])
-  ];
-  return normalizeProgress({ completedStages: mergedCompleted });
+  return mergeProgress(
+    readStorage(STORAGE_KEY),
+    readCookie(),
+    readStorage("gram_defenders_progress_v2"),
+    readStorage("gram_defenders_progress_v1")
+  );
 }
 
 function safeWrite(progress) {
@@ -73,37 +94,51 @@ export function getProgress() {
   return safeRead();
 }
 
+export function getStageBestStars(stage) {
+  return safeRead().bestStars[Number(stage)] || 0;
+}
+
 export function isStageUnlocked(stage) {
   const target = Number(stage);
   if (!Number.isInteger(target) || target < 1 || target > MAX_STAGE) return false;
   return target <= safeRead().unlockedStage;
 }
 
-export function completeStage(stage) {
+export function completeStage(stage, stars = 1) {
   const target = Number(stage);
+  const earnedStars = clampStars(stars);
   const progress = safeRead();
 
-  if (!Number.isInteger(target) || target < 1 || target > MAX_STAGE) return progress;
+  if (!Number.isInteger(target) || target < 1 || target > MAX_STAGE || earnedStars < 1) return progress;
 
-  // Strict sequential progression: only the currently unlocked stage can advance progress.
-  if (target !== progress.unlockedStage) {
-    // Replaying an already-cleared stage is allowed but does not change progression.
-    return progress;
+  // Replays may improve the best star rating but cannot skip progression.
+  if (progress.completedStages.includes(target)) {
+    progress.bestStars[target] = Math.max(progress.bestStars[target] || 1, earnedStars);
+    return safeWrite(progress);
   }
 
+  // Only the currently unlocked stage can advance progression.
+  if (target !== progress.unlockedStage) return progress;
+
   progress.completedStages.push(target);
+  progress.bestStars[target] = Math.max(progress.bestStars[target] || 0, earnedStars);
   return safeWrite(progress);
 }
 
 export function applyCompletionFromSearch(search = "") {
-  const match = String(search).match(/[?&]completed=(\d+)/);
-  const completed = Number(match?.[1]);
-  if (Number.isInteger(completed)) return completeStage(completed);
+  const stageMatch = String(search).match(/[?&]completed=(\d+)/);
+  const starsMatch = String(search).match(/[?&]stars=(\d+)/);
+  const completed = Number(stageMatch?.[1]);
+  const stars = starsMatch ? Number(starsMatch[1]) : 1;
+  if (Number.isInteger(completed)) return completeStage(completed, stars);
   return getProgress();
 }
 
 export function resetProgress() {
-  const progress = { unlockedStage: 1, completedStages: [] };
-  try { localStorage.removeItem("gram_defenders_progress_v1"); } catch {}
+  const progress = { unlockedStage: 1, completedStages: [], bestStars: {} };
+  try {
+    localStorage.removeItem("gram_defenders_progress_v1");
+    localStorage.removeItem("gram_defenders_progress_v2");
+  } catch {}
   return safeWrite(progress);
 }
