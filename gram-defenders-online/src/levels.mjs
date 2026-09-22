@@ -1,0 +1,56 @@
+import { getProgress, resetProgress } from "./progression.mjs";
+
+const STAGES = [
+  { id:1, title:"Frontline Basics", subtitle:"VOLYA Guard AI · Tower L1", href:"/" , implemented:true },
+  { id:2, title:"Tower Upgrade", subtitle:"Unlock Tower Level 2", href:"/stage2.html", implemented:true },
+  { id:3, title:"Energy Economy", subtitle:"Build / Upgrade Energy decisions", href:"/stage3.html", implemented:true },
+  { id:4, title:"Mini-Boss", subtitle:"Elite encounter · Next build", href:null, implemented:false },
+  { id:5, title:"New Threat", subtitle:"New enemy / tactical rule", href:null, implemented:false },
+  { id:6, title:"Combined Pressure", subtitle:"Mixed threat composition", href:null, implemented:false },
+  { id:7, title:"Pre-Boss", subtitle:"Elite preparation stage", href:null, implemented:false },
+  { id:8, title:"Main Boss", subtitle:"Land 01 boss encounter", href:null, implemented:false }
+];
+
+const grid=document.querySelector("#stage-grid");
+const summary=document.querySelector("#progress-summary");
+const resetButton=document.querySelector("#reset-progress");
+
+function render(){
+  const progress=getProgress();
+  summary.textContent=`Unlocked through Stage ${progress.unlockedStage} · ${progress.completedStages.length} cleared`;
+  grid.innerHTML="";
+
+  for(const stage of STAGES){
+    const unlocked=stage.id<=progress.unlockedStage;
+    const completed=progress.completedStages.includes(stage.id);
+    const card=document.createElement("article");
+    card.className=`stage-card ${unlocked?"unlocked":"locked"} ${completed?"completed":""}`;
+
+    const state=completed?"CLEARED":unlocked?(stage.implemented?"UNLOCKED":"UNLOCKED · COMING NEXT"):"LOCKED";
+    card.innerHTML=`
+      <div class="stage-number">${String(stage.id).padStart(2,"0")}</div>
+      <div class="stage-copy">
+        <span class="stage-state">${state}</span>
+        <h3>${stage.title}</h3>
+        <p>${stage.subtitle}</p>
+      </div>
+    `;
+
+    if(unlocked&&stage.implemented&&stage.href){
+      const link=document.createElement("a");
+      link.className="stage-play";
+      link.href=stage.href;
+      link.textContent=completed?"Replay":"Play";
+      card.appendChild(link);
+    }else{
+      const lock=document.createElement("span");
+      lock.className="stage-lock";
+      lock.textContent=unlocked?"In development":"🔒";
+      card.appendChild(lock);
+    }
+    grid.appendChild(card);
+  }
+}
+
+resetButton.addEventListener("click",()=>{resetProgress();render();});
+render();
