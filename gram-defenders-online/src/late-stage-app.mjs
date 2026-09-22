@@ -2,6 +2,8 @@ import { BASE_ENEMIES, buildTower, canBuildTower, canUpgradeTower, createGame, d
 import { makePath } from "./late-stage-config.mjs";
 import { LAND_RULES, completeStage, getLandStars, isNextLandUnlocked, isStageUnlocked } from "./progression.mjs";
 import { STAGE_RATING, formatStars, getStageStars } from "./stage-rating.mjs";
+import { grantStageReward } from "./meta-progression.mjs";
+import { formatStageReward } from "./reward-ui.mjs";
 
 const stageId=Number(document.body.dataset.stage);
 if(!isStageUnlocked(stageId)) window.location.replace("/levels.html");
@@ -12,7 +14,7 @@ const eyebrow=document.querySelector("#stage-eyebrow"),title=document.querySelec
 const bossHud=document.querySelector("#boss-hud"),bossName=document.querySelector("#boss-name"),bossFill=document.querySelector("#boss-fill"),bossState=document.querySelector("#boss-state");
 const startButton=document.querySelector("#start"),skillButton=document.querySelector("#hero-skill"),speedButton=document.querySelector("#game-speed"),upgradeButton=document.querySelector("#upgrade-tower");
 const towerCard=document.querySelector("#tower-card"),removeButton=document.querySelector("#remove-tower"),buildStatus=document.querySelector("#build-status"),mapLink=document.querySelector(".stage-link");
-let game=createGame(stageId),last=performance.now(),towerMode="build",selectedSlotId=null,pulseFxUntil=0,lastShownEnergy=game.energy,energyFlashUntil=0,victoryRecorded=false;
+let game=createGame(stageId),last=performance.now(),towerMode="build",selectedSlotId=null,pulseFxUntil=0,lastShownEnergy=game.energy,energyFlashUntil=0,victoryRecorded=false,lastStageReward=null;
 const SPEED_STEPS=[1,2,3];let speedIndex=0,gameSpeed=1;
 eyebrow.textContent=cfg.eyebrow;title.textContent="GRAM DEFENDERS";message.textContent=cfg.intro;
 towerCard.querySelector("strong").textContent=`Pulse Tower · ${cfg.buildCost}⚡`;
@@ -24,7 +26,7 @@ function pathStroke(points,color,width,smooth=false){const p=points.map(iso);ctx
 function polygon(points,fill,stroke,width=2){ctx.beginPath();points.forEach((p,i)=>i?ctx.lineTo(p.x,p.y):ctx.moveTo(p.x,p.y));ctx.closePath();ctx.fillStyle=fill;ctx.fill();ctx.strokeStyle=stroke;ctx.lineWidth=width;ctx.stroke();}
 function terrain(){const c=[{x:-15,z:-9},{x:15,z:-9},{x:15,z:9},{x:-15,z:9}].map(iso);polygon(c.map(p=>({x:p.x,y:p.y+24})),"#06111d","#102c42");polygon(c,"#102638","#35627f",3);}
 function marker(point,label,color,r=15){const p=iso(point);ctx.save();ctx.shadowColor=color;ctx.shadowBlur=12;ctx.beginPath();ctx.arc(p.x,p.y,r,0,Math.PI*2);ctx.fillStyle=color;ctx.fill();ctx.shadowBlur=0;ctx.strokeStyle="#dffaff";ctx.lineWidth=2;ctx.stroke();ctx.fillStyle="#04101b";ctx.font="800 12px system-ui";ctx.textAlign="center";ctx.textBaseline="middle";ctx.fillText(label,p.x,p.y);ctx.restore();}
-function drawTowerRange(slot,level){const p=iso(slot),stats=getTowerStats(level);ctx.save();ctx.beginPath();ctx.ellipse(p.x,p.y,stats.range*38,stats.range*19,0,0,Math.PI*2);ctx.fillStyle="#ffb23f18";ctx.fill();ctx.strokeStyle="#ffc45caa";ctx.lineWidth=2;ctx.setLineDash([9,7]);ctx.stroke();ctx.restore();}
+function drawTowerRange(slot,level){const p=iso(slot),stats=getTowerStats(level,game);ctx.save();ctx.beginPath();ctx.ellipse(p.x,p.y,stats.range*38,stats.range*19,0,0,Math.PI*2);ctx.fillStyle="#ffb23f18";ctx.fill();ctx.strokeStyle="#ffc45caa";ctx.lineWidth=2;ctx.setLineDash([9,7]);ctx.stroke();ctx.restore();}
 function drawTower(slot){const p=iso(slot),tower=game.towers.find(t=>t.slotId===slot.id);if(!tower)return marker(slot,slot.id,selectedSlotId===slot.id?"#9a6a25":"#6f5830",14);ctx.save();ctx.shadowColor=tower.level===3?"#fff7ba":tower.level===2?"#fff0a3":"#ffb23f";ctx.shadowBlur=tower.level===3?34:tower.level===2?28:18;polygon([{x:p.x-20,y:p.y+11},{x:p.x,y:p.y+22},{x:p.x+20,y:p.y+11},{x:p.x,y:p.y}],tower.level===3?"#f0b82e":tower.level===2?"#d89618":"#a65d16","#ffd388");ctx.fillStyle=tower.level===3?"#fff0a0":tower.level===2?"#ffe083":"#ffb23f";ctx.fillRect(p.x-9,p.y-27,18,34);ctx.beginPath();ctx.arc(p.x,p.y-29,tower.level===3?18:tower.level===2?16:13,0,Math.PI*2);ctx.fill();ctx.shadowBlur=0;ctx.fillStyle="#112131";ctx.font="900 11px system-ui";ctx.textAlign="center";ctx.fillText(`${slot.id} L${tower.level}`,p.x,p.y+14);ctx.restore();}
 function beam(origin,target,color){const a=iso(origin),b=iso(target);ctx.save();ctx.strokeStyle=color;ctx.shadowColor=color;ctx.shadowBlur=14;ctx.globalAlpha=.78;ctx.lineWidth=4;ctx.beginPath();ctx.moveTo(a.x,a.y-18);ctx.lineTo(b.x,b.y);ctx.stroke();ctx.restore();}
 function drawGuard(){const a=iso(game.hero.anchor);ctx.save();ctx.beginPath();ctx.ellipse(a.x,a.y,3.6*38,3.6*19,0,0,Math.PI*2);ctx.fillStyle="#47ddff10";ctx.fill();ctx.strokeStyle="#55e7ff88";ctx.lineWidth=2;ctx.setLineDash([10,8]);ctx.stroke();ctx.restore();}
@@ -50,7 +52,7 @@ function render(now){
 
 function updateUi(){
   if(game.status==="won"&&!victoryRecorded){
-    completeStage(stageId,game.stars);victoryRecorded=true;
+    completeStage(stageId,game.stars);lastStageReward=grantStageReward(stageId,game.stars).reward;victoryRecorded=true;
     mapLink.href=`/levels.html?completed=${stageId}&stars=${game.stars}`;
     if(stageId<8){
       mapLink.textContent=`Continue · Stage ${stageId+1}`;
@@ -61,7 +63,7 @@ function updateUi(){
   if(game.energy!==lastShownEnergy){energyFlashUntil=performance.now()+450;lastShownEnergy=game.energy;}
   energyLabel.textContent=`Energy ${game.energy} / ${cfg.maxEnergy}`;energyLabel.classList.toggle("energy-flash",performance.now()<energyFlashUntil);
   waveLabel.textContent=`Wave ${game.wave} / ${cfg.waves.length}`;coreLabel.textContent=`Leaks ${game.leaks}/${STAGE_RATING.maxLeaks} · ${formatStars(getStageStars(game.leaks))}`;
-  heroLabel.textContent=game.hero.downTimer>0?`VOLYA respawn ${game.hero.downTimer.toFixed(1)}s`:`VOLYA ${Math.ceil(game.hero.health)} / 500 · ${game.hero.state.toUpperCase()}`;
+  heroLabel.textContent=game.hero.downTimer>0?`VOLYA respawn ${game.hero.downTimer.toFixed(1)}s`:`VOLYA ${Math.ceil(game.hero.health)} / ${game.hero.maxHealth} · ${game.hero.state.toUpperCase()}`;
 
   const clear=!game.spawnQueue.length&&!game.enemies.length;startButton.disabled=!clear||game.status==="won"||game.status==="lost";startButton.textContent=game.wave>=cfg.waves.length?"All Waves Deployed":`Start Wave ${game.wave+1}`;
   const cd=game.hero.skillCooldown;skillButton.disabled=game.status!=="playing"||Boolean(game.hero.manualDestination)||game.hero.downTimer>0||cd>0;skillButton.textContent=cd>0?`GRAM Pulse · ${cd.toFixed(1)}s`:"GRAM Pulse";
@@ -73,7 +75,7 @@ function updateUi(){
   const elite=getElite(game);bossHud.hidden=!elite;
   if(elite){const type=BASE_ENEMIES[elite.type],ratio=Math.max(0,elite.health/elite.maxHealth);bossName.textContent=type.label;bossFill.style.width=`${ratio*100}%`;bossState.textContent=getBossState(elite);}
 
-  if(game.status==="won")message.textContent=stageId===8?(isNextLandUnlocked()?`LAND 01 CLEARED · ${formatStars(game.stars)} · ${getLandStars()}/${LAND_RULES.maxStars}★ · Land 02 unlocked.`:`LAND 01 CLEARED · ${formatStars(game.stars)} · ${getLandStars()}/${LAND_RULES.maxStars}★ · Need ${LAND_RULES.nextLandStarRequirement}★ for Land 02.`):`STAGE ${stageId} COMPLETE · ${formatStars(game.stars)} · Stage ${stageId+1} unlocked.`;
+  if(game.status==="won")message.textContent=stageId===8?(isNextLandUnlocked()?`LAND 01 CLEARED · ${formatStars(game.stars)} · ${formatStageReward(lastStageReward)} · ${getLandStars()}/${LAND_RULES.maxStars}★ · Land 02 unlocked.`:`LAND 01 CLEARED · ${formatStars(game.stars)} · ${formatStageReward(lastStageReward)} · ${getLandStars()}/${LAND_RULES.maxStars}★ · Need ${LAND_RULES.nextLandStarRequirement}★ for Land 02.`):`STAGE ${stageId} COMPLETE · ${formatStars(game.stars)} · ${formatStageReward(lastStageReward)} · Stage ${stageId+1} unlocked.`;
   else if(game.status==="lost")message.textContent=game.mainBossEscaped?"DEFEAT · MAIN BOSS escaped to the Core.":"DEFEAT · 10 enemies escaped.";
   else if(game.status==="between"&&game.lastWaveBonus>0)message.textContent=`Wave cleared · +${game.lastWaveBonus} Energy bonus.`;
   else if(elite)message.textContent=elite.type==="coretyrant"?"CORE TYRANT active — break armor, then survive its enrage phase.":"Elite active — move VOLYA to pressure it while Towers provide support.";
@@ -101,4 +103,4 @@ skillButton.addEventListener("click",()=>{if(useHeroSkill(game))pulseFxUntil=per
 speedButton.addEventListener("click",()=>{speedIndex=(speedIndex+1)%SPEED_STEPS.length;gameSpeed=SPEED_STEPS[speedIndex];speedButton.textContent=`Speed ${gameSpeed}×`;speedButton.classList.toggle("fast",gameSpeed>1);});
 upgradeButton.addEventListener("click",()=>{if(selectedSlotId)upgradeTower(game,selectedSlotId);});
 towerCard.addEventListener("click",()=>setTowerMode("build"));removeButton.addEventListener("click",()=>setTowerMode("remove"));
-document.querySelector("#restart").addEventListener("click",()=>{game=createGame(stageId);selectedSlotId=null;pulseFxUntil=0;lastShownEnergy=game.energy;victoryRecorded=false;setTowerMode("build");last=performance.now();});
+document.querySelector("#restart").addEventListener("click",()=>{game=createGame(stageId);selectedSlotId=null;pulseFxUntil=0;lastShownEnergy=game.energy;victoryRecorded=false;lastStageReward=null;setTowerMode("build");last=performance.now();});
