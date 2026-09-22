@@ -35,3 +35,20 @@ export function samplePath(progress) {
   }
   return { ...MAP.core };
 }
+
+
+export function samplePathWithOffset(progress, lateralOffset = 0) {
+  const p = Math.max(0, Math.min(1, progress));
+  const center = samplePath(p);
+  const epsilon = 0.0025;
+  const before = samplePath(Math.max(0, p - epsilon));
+  const after = samplePath(Math.min(1, p + epsilon));
+  const tx = after.x - before.x;
+  const tz = after.z - before.z;
+  const length = Math.hypot(tx, tz) || 1;
+  const nx = -tz / length;
+  const nz = tx / length;
+  const maxOffset = Math.max(0, MAP.laneWidth / 2 - 0.35);
+  const offset = Math.max(-maxOffset, Math.min(maxOffset, lateralOffset));
+  return { x: center.x + nx * offset, z: center.z + nz * offset };
+}
