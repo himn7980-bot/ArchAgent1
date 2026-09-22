@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="description" content="GRAM Defenders Stage 8.">
+  <title>GRAM Defenders — Stage 8</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body data-stage="8">
+  <main class="shell">
+    <header>
+      <div><p id="stage-eyebrow" class="eyebrow">LAND 01 · STAGE 08</p><h1 id="stage-title">GRAM DEFENDERS</h1></div>
+      <div class="hud"><span id="wave">Wave 0 / 3</span><span id="energy" class="energy-hud">Energy</span><span id="hero-hp">VOLYA 500 / 500</span><span id="core">Core ◆◆◆◆</span></div>
+    </header>
+    <section class="game-wrap">
+      <canvas id="game" width="1200" height="675" aria-label="GRAM Defenders Stage 8 game field"></canvas>
+      <div id="boss-hud" class="boss-hud" hidden><div class="boss-title"><strong id="boss-name">ELITE</strong><span id="boss-state">ARMORED</span></div><div class="boss-track"><div id="boss-fill" class="boss-fill"></div></div></div>
+      <div id="message" class="message">Loading Stage 8…</div>
+    </section>
+    <footer>
+      <div class="battle-actions">
+        <button id="start">Start Wave 1</button>
+        <button id="hero-skill" class="skill-button" disabled>GRAM Pulse</button>
+        <button id="game-speed" class="secondary speed-button" type="button">Speed 1×</button>
+        <button id="upgrade-tower" class="secondary" disabled>Upgrade selected tower</button>
+        <button id="restart" class="secondary">Restart</button>
+        <a class="stage-link" href="/levels.html">Land 01 Map</a>
+      </div>
+      <section class="deck" aria-label="Tower loadout">
+        <span class="deck-label">TOWER LOADOUT</span>
+        <button id="tower-card" class="tower-card selected" aria-pressed="true"><span class="tower-icon">◆</span><span><strong>Pulse Tower</strong><small>L1 → L2 → L3</small></span></button>
+        <button id="remove-tower" class="secondary mode-button" aria-pressed="false">Remove · no refund</button>
+        <span id="build-status">Build mode</span>
+      </section>
+      <p>Playable Land 01 stage · sequential progression · Energy economy · Tower L3 available</p>
+    </footer>
+  </main>
+  <script type="module" src="src/late-stage-app.mjs"></script>
+</body>
+</html>
