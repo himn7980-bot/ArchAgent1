@@ -68,7 +68,7 @@ export const STAGE_CONFIGS = Object.freeze({
     ])
   }),
   8:Object.freeze({
-    id:8,title:"Main Boss",eyebrow:"LAND 01 · STAGE 08 · MAIN BOSS",
+    id:8,title:"Main Boss",eyebrow:"LAND 01 · STAGE 08 · MAIN BOSS",mainBossType:"coretyrant",
     intro:"CORE TYRANT has armor early, then enrages below 50% HP. If it reaches the Core, the stage is lost.",
     maxTowerLevel:3,startEnergy:120,maxEnergy:220,buildCost:35,upgradeCosts:Object.freeze({2:30,3:45}),waveBonus:Object.freeze([18,24,35]),
     map:map(8,
