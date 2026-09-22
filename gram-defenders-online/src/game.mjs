@@ -1,10 +1,21 @@
-import { MAP, distance, samplePath } from "./map.mjs";
+import { MAP, distance, samplePathWithOffset } from "./map.mjs";
 
 export const ENEMY_TYPES = Object.freeze({
-  scout: Object.freeze({ id: "scout", label: "Scout", health: 85, speed: 0.026, damage: 9, attackCooldown: 1.1, interceptRange: 1.55 }),
-  raider: Object.freeze({ id: "raider", label: "Raider", health: 125, speed: 0.022, damage: 13, attackCooldown: 1.0, interceptRange: 1.60 }),
-  brute: Object.freeze({ id: "brute", label: "Brute", health: 185, speed: 0.017, damage: 20, attackCooldown: 1.25, interceptRange: 1.70 })
+  scout: Object.freeze({
+    id: "scout", label: "Scout", combat: "melee",
+    health: 85, speed: 0.026, damage: 9, attackCooldown: 1.1, interceptRange: 1.55
+  }),
+  archer: Object.freeze({
+    id: "archer", label: "Archer", combat: "ranged",
+    health: 105, speed: 0.021, damage: 11, attackCooldown: 1.35, attackRange: 5.0
+  }),
+  brute: Object.freeze({
+    id: "brute", label: "Brute", combat: "melee",
+    health: 185, speed: 0.017, damage: 20, attackCooldown: 1.25, interceptRange: 1.70
+  })
 });
+
+const LANE_OFFSETS = Object.freeze([-0.95, -0.5, 0, 0.5, 0.95]);
 
 function group(type, count, interval, gapAfter = 0) {
   return { type, count, interval, gapAfter };
@@ -13,17 +24,17 @@ function group(type, count, interval, gapAfter = 0) {
 export const WAVES = Object.freeze([
   Object.freeze([
     group("scout", 3, 0.62, 2.7),
-    group("raider", 4, 0.72, 2.3),
+    group("archer", 4, 0.76, 2.3),
     group("brute", 5, 0.82, 0)
   ]),
   Object.freeze([
     group("scout", 4, 0.60, 2.5),
-    group("raider", 5, 0.70, 2.1),
+    group("archer", 5, 0.74, 2.1),
     group("brute", 6, 0.80, 0)
   ]),
   Object.freeze([
     group("scout", 5, 0.58, 2.3),
-    group("raider", 6, 0.68, 1.9),
+    group("archer", 6, 0.72, 1.9),
     group("brute", 7, 0.78, 0)
   ])
 ]);
@@ -141,15 +152,19 @@ export function useHeroSkill(game) {
 
 function spawnEnemy(game, typeId) {
   const type = ENEMY_TYPES[typeId];
+  const id = game.nextEnemyId++;
+  const laneOffset = LANE_OFFSETS[(id - 1) % LANE_OFFSETS.length];
   game.enemies.push({
-    id: game.nextEnemyId++,
+    id,
     type: typeId,
     health: type.health,
     maxHealth: type.health,
     progress: 0,
-    position: samplePath(0),
+    laneOffset,
+    position: samplePathWithOffset(0, laneOffset),
     attackCooldown: 0,
-    engaged: false
+    engaged: false,
+    engagement: null
   });
 }
 
@@ -216,8 +231,7 @@ function updateHeroAI(game, dt) {
   }
 
   if (target) {
-    const meleeDistance = Math.min(CONFIG.heroRange, ENEMY_TYPES[target.type].interceptRange);
-    if (distance(hero.position, target.position) > meleeDistance) {
+    if (distance(hero.position, target.position) > CONFIG.heroRange) {
       moveToward(hero.position, target.position, CONFIG.heroMoveSpeed, dt);
       hero.state = "chasing";
     } else {
@@ -247,6 +261,11 @@ function updateRespawn(game, dt) {
   }
 }
 
+function moveEnemyAlongLane(enemy, type, dt) {
+  enemy.progress += type.speed * dt;
+  enemy.position = samplePathWithOffset(enemy.progress, enemy.laneOffset);
+}
+
 export function updateGame(game, dt) {
   const step = Math.max(0, Math.min(dt, 0.1));
   if (game.status === "won" || game.status === "lost") return game;
@@ -272,19 +291,35 @@ export function updateGame(game, dt) {
   for (const enemy of game.enemies) {
     const type = ENEMY_TYPES[enemy.type];
     enemy.attackCooldown = Math.max(0, enemy.attackCooldown - step);
+    enemy.engaged = false;
+    enemy.engagement = null;
+
+    if (type.combat === "ranged") {
+      const canShootHero = heroActive && distance(enemy.position, game.hero.position) <= type.attackRange;
+      if (canShootHero) {
+        enemy.engaged = true;
+        enemy.engagement = "ranged";
+        if (enemy.attackCooldown <= 0) {
+          game.hero.health -= type.damage;
+          enemy.attackCooldown = type.attackCooldown;
+        }
+      } else {
+        moveEnemyAlongLane(enemy, type, step);
+      }
+      continue;
+    }
 
     const isLockedTarget = heroActive && game.hero.targetId === enemy.id && game.hero.state !== "relocating";
     const inMelee = isLockedTarget && distance(enemy.position, game.hero.position) <= type.interceptRange;
-    enemy.engaged = inMelee;
-
     if (inMelee) {
+      enemy.engaged = true;
+      enemy.engagement = "melee";
       if (enemy.attackCooldown <= 0) {
         game.hero.health -= type.damage;
         enemy.attackCooldown = type.attackCooldown;
       }
     } else {
-      enemy.progress += type.speed * step;
-      enemy.position = samplePath(enemy.progress);
+      moveEnemyAlongLane(enemy, type, step);
     }
   }
 
