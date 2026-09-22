@@ -1,23 +1,62 @@
 import { MAP, distance, samplePath } from "./map.mjs";
 
+export const ENEMY_TYPES = Object.freeze({
+  scout: Object.freeze({ id: "scout", label: "Scout", health: 85, speed: 0.026, damage: 9, attackCooldown: 1.1, engageRange: 1.05 }),
+  raider: Object.freeze({ id: "raider", label: "Raider", health: 125, speed: 0.022, damage: 13, attackCooldown: 1.0, engageRange: 1.08 }),
+  brute: Object.freeze({ id: "brute", label: "Brute", health: 185, speed: 0.017, damage: 20, attackCooldown: 1.25, engageRange: 1.12 })
+});
+
+function group(type, count, interval, gapAfter = 0) {
+  return { type, count, interval, gapAfter };
+}
+
+export const WAVES = Object.freeze([
+  Object.freeze([
+    group("scout", 3, 0.62, 2.7),
+    group("raider", 4, 0.72, 2.3),
+    group("brute", 5, 0.82, 0)
+  ]),
+  Object.freeze([
+    group("scout", 4, 0.60, 2.5),
+    group("raider", 5, 0.70, 2.1),
+    group("brute", 6, 0.80, 0)
+  ]),
+  Object.freeze([
+    group("scout", 5, 0.58, 2.3),
+    group("raider", 6, 0.68, 1.9),
+    group("brute", 7, 0.78, 0)
+  ])
+]);
+
 export const CONFIG = Object.freeze({
   coreHealth: 4,
-  heroDamage: 32,
-  heroRange: 4.2,
-  heroCooldown: 0.6,
-  heroMoveDuration: 0.7,
+  heroMaxHealth: 500,
+  heroDamage: 48,
+  heroRange: 1.18,
+  heroCooldown: 0.72,
+  heroMoveSpeed: 4.2,
+  heroRespawnDelay: 6,
   heroSkillDamage: 100,
-  heroSkillRadius: 3.5,
+  heroSkillRadius: 2.6,
   heroSkillCooldown: 10,
   towerDamage: 15,
   towerRange: 4.6,
   towerCooldown: 0.78,
-  enemyHealth: 125,
-  enemySpeed: 0.052,
-  spawnInterval: 0.68,
-  waveCounts: [6, 9, 12],
   maxTowers: 3
 });
+
+function buildSpawnQueue(waveGroups) {
+  const queue = [];
+  waveGroups.forEach((entry, groupIndex) => {
+    for (let i = 0; i < entry.count; i += 1) {
+      queue.push({
+        type: entry.type,
+        delay: i === 0 && groupIndex === 0 ? 0 : (i === 0 ? waveGroups[groupIndex - 1].gapAfter : entry.interval)
+      });
+    }
+  });
+  return queue;
+}
 
 export function createGame() {
   return {
@@ -25,10 +64,17 @@ export function createGame() {
     coreHealth: CONFIG.coreHealth,
     wave: 0,
     enemies: [],
-    pending: 0,
+    spawnQueue: [],
     spawnTimer: 0,
     nextEnemyId: 1,
-    hero: { nodeId: "H1", position: { ...MAP.heroNodes[0] }, from: null, to: null, moveElapsed: 0, cooldown: 0, skillCooldown: 0 },
+    hero: {
+      position: { x: -7.2, z: 3.8 },
+      destination: null,
+      health: CONFIG.heroMaxHealth,
+      cooldown: 0,
+      skillCooldown: 0,
+      downTimer: 0
+    },
     towers: []
   };
 }
@@ -51,27 +97,28 @@ export function removeTower(game, slotId) {
 }
 
 export function startWave(game) {
-  if (game.status === "won" || game.status === "lost" || game.pending || game.enemies.length) return false;
-  if (game.wave >= CONFIG.waveCounts.length) return false;
-  game.pending = CONFIG.waveCounts[game.wave];
+  if (game.status === "won" || game.status === "lost" || game.spawnQueue.length || game.enemies.length) return false;
+  if (game.wave >= WAVES.length) return false;
+  game.spawnQueue = buildSpawnQueue(WAVES[game.wave]);
   game.wave += 1;
   game.spawnTimer = 0;
   game.status = "playing";
   return true;
 }
 
-export function moveHero(game, nodeId) {
-  if (game.status === "won" || game.status === "lost") return false;
-  const target = MAP.heroNodes.find((node) => node.id === nodeId);
-  if (!target || game.hero.to?.id === nodeId || (!game.hero.to && game.hero.nodeId === nodeId)) return false;
-  game.hero.from = { ...game.hero.position };
-  game.hero.to = target;
-  game.hero.moveElapsed = 0;
+export function moveHero(game, point) {
+  if (game.status === "won" || game.status === "lost" || game.hero.downTimer > 0) return false;
+  if (!point || !Number.isFinite(point.x) || !Number.isFinite(point.z)) return false;
+  const margin = 0.8;
+  game.hero.destination = {
+    x: Math.max(-MAP.width / 2 + margin, Math.min(MAP.width / 2 - margin, point.x)),
+    z: Math.max(-MAP.depth / 2 + margin, Math.min(MAP.depth / 2 - margin, point.z))
+  };
   return true;
 }
 
 export function useHeroSkill(game) {
-  if (game.status !== "playing" || game.hero.to || game.hero.skillCooldown > 0) return false;
+  if (game.status !== "playing" || game.hero.destination || game.hero.downTimer > 0 || game.hero.skillCooldown > 0) return false;
   const targets = game.enemies.filter((enemy) => distance(enemy.position, game.hero.position) <= CONFIG.heroSkillRadius);
   if (!targets.length) return false;
   for (const target of targets) target.health -= CONFIG.heroSkillDamage;
@@ -79,10 +126,18 @@ export function useHeroSkill(game) {
   return true;
 }
 
-function spawnEnemy(game) {
-  game.enemies.push({ id: game.nextEnemyId++, health: CONFIG.enemyHealth, progress: 0, position: samplePath(0) });
-  game.pending -= 1;
-  game.spawnTimer = CONFIG.spawnInterval;
+function spawnEnemy(game, typeId) {
+  const type = ENEMY_TYPES[typeId];
+  game.enemies.push({
+    id: game.nextEnemyId++,
+    type: typeId,
+    health: type.health,
+    maxHealth: type.health,
+    progress: 0,
+    position: samplePath(0),
+    attackCooldown: 0,
+    engaged: false
+  });
 }
 
 function nearestTarget(enemies, origin, range) {
@@ -90,49 +145,84 @@ function nearestTarget(enemies, origin, range) {
     .sort((a, b) => b.progress - a.progress)[0];
 }
 
-function attack(game, attacker, origin, range, damage, dt) {
+function attackEnemy(attacker, enemies, origin, range, damage, cooldown, dt) {
   attacker.cooldown = Math.max(0, attacker.cooldown - dt);
-  if (attacker.cooldown > 0) return;
-  const target = nearestTarget(game.enemies, origin, range);
-  if (target) {
-    target.health -= damage;
-    attacker.cooldown = attacker === game.hero ? CONFIG.heroCooldown : CONFIG.towerCooldown;
+  if (attacker.cooldown > 0) return null;
+  const target = nearestTarget(enemies, origin, range);
+  if (!target) return null;
+  target.health -= damage;
+  attacker.cooldown = cooldown;
+  return target;
+}
+
+function updateHeroMovement(hero, dt) {
+  if (!hero.destination || hero.downTimer > 0) return;
+  const dx = hero.destination.x - hero.position.x;
+  const dz = hero.destination.z - hero.position.z;
+  const remaining = Math.hypot(dx, dz);
+  if (remaining < 0.03) {
+    hero.position = { ...hero.destination };
+    hero.destination = null;
+    return;
+  }
+  const travel = Math.min(remaining, CONFIG.heroMoveSpeed * dt);
+  hero.position.x += dx / remaining * travel;
+  hero.position.z += dz / remaining * travel;
+}
+
+function updateRespawn(game, dt) {
+  if (game.hero.downTimer <= 0) return;
+  game.hero.downTimer = Math.max(0, game.hero.downTimer - dt);
+  if (game.hero.downTimer === 0) {
+    game.hero.health = CONFIG.heroMaxHealth;
+    game.hero.position = { x: -7.2, z: 3.8 };
+    game.hero.destination = null;
   }
 }
 
 export function updateGame(game, dt) {
-  if (game.status !== "playing") return game;
   const step = Math.max(0, Math.min(dt, 0.1));
-  game.hero.skillCooldown = Math.max(0, game.hero.skillCooldown - step);
+  if (game.status === "won" || game.status === "lost") return game;
+  updateHeroMovement(game.hero, step);
+  if (game.status !== "playing") return game;
 
-  if (game.hero.to) {
-    game.hero.moveElapsed += step;
-    const t = Math.min(1, game.hero.moveElapsed / CONFIG.heroMoveDuration);
-    game.hero.position = {
-      x: game.hero.from.x + (game.hero.to.x - game.hero.from.x) * t,
-      z: game.hero.from.z + (game.hero.to.z - game.hero.from.z) * t
-    };
-    game.hero.cooldown = Math.max(0, game.hero.cooldown - step);
-    if (t === 1) {
-      game.hero.nodeId = game.hero.to.id;
-      game.hero.position = { ...game.hero.to };
-      game.hero.from = null;
-      game.hero.to = null;
+  game.hero.skillCooldown = Math.max(0, game.hero.skillCooldown - step);
+  updateRespawn(game, step);
+
+  game.spawnTimer -= step;
+  if (game.spawnQueue.length && game.spawnTimer <= 0) {
+    const next = game.spawnQueue.shift();
+    spawnEnemy(game, next.type);
+    game.spawnTimer = game.spawnQueue.length ? game.spawnQueue[0].delay : 0;
+  }
+
+  const heroActive = game.hero.downTimer <= 0 && game.hero.health > 0;
+  for (const enemy of game.enemies) {
+    const type = ENEMY_TYPES[enemy.type];
+    enemy.attackCooldown = Math.max(0, enemy.attackCooldown - step);
+    const closeToHero = heroActive && distance(enemy.position, game.hero.position) <= type.engageRange;
+    enemy.engaged = closeToHero;
+
+    if (closeToHero) {
+      if (enemy.attackCooldown <= 0) {
+        game.hero.health -= type.damage;
+        enemy.attackCooldown = type.attackCooldown;
+      }
+    } else {
+      enemy.progress += type.speed * step;
+      enemy.position = samplePath(enemy.progress);
     }
   }
 
-  game.spawnTimer -= step;
-  if (game.pending > 0 && game.spawnTimer <= 0) spawnEnemy(game);
-
-  for (const enemy of game.enemies) {
-    enemy.progress += CONFIG.enemySpeed * step;
-    enemy.position = samplePath(enemy.progress);
+  if (heroActive && !game.hero.destination) {
+    attackEnemy(game.hero, game.enemies, game.hero.position, CONFIG.heroRange, CONFIG.heroDamage, CONFIG.heroCooldown, step);
+  } else {
+    game.hero.cooldown = Math.max(0, game.hero.cooldown - step);
   }
 
-  if (!game.hero.to) attack(game, game.hero, game.hero.position, CONFIG.heroRange, CONFIG.heroDamage, step);
   for (const tower of game.towers) {
     const towerPosition = MAP.towerSlots.find((slot) => slot.id === tower.slotId);
-    attack(game, tower, towerPosition, CONFIG.towerRange, CONFIG.towerDamage, step);
+    attackEnemy(tower, game.enemies, towerPosition, CONFIG.towerRange, CONFIG.towerDamage, CONFIG.towerCooldown, step);
   }
 
   game.enemies = game.enemies.filter((enemy) => {
@@ -144,9 +234,15 @@ export function updateGame(game, dt) {
     return true;
   });
 
+  if (game.hero.health <= 0 && game.hero.downTimer <= 0) {
+    game.hero.health = 0;
+    game.hero.destination = null;
+    game.hero.downTimer = CONFIG.heroRespawnDelay;
+  }
+
   if (game.coreHealth <= 0) game.status = "lost";
-  else if (!game.pending && !game.enemies.length) {
-    game.status = game.wave === CONFIG.waveCounts.length ? "won" : "between";
+  else if (!game.spawnQueue.length && !game.enemies.length) {
+    game.status = game.wave === WAVES.length ? "won" : "between";
   }
   return game;
 }
