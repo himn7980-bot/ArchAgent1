@@ -1,12 +1,14 @@
 import { MAP, PATH, distance } from "./stage3-map.mjs";
 import { buildTower, canBuildTower, canUpgradeTower, CONFIG, createGame, ENEMY_TYPES, getTowerStats, moveHero, removeTower, startWave, updateGame, upgradeTower, useHeroSkill, WAVES } from "./stage3-game.mjs";
+import { completeStage, isStageUnlocked } from "./progression.mjs";
+if (!isStageUnlocked(3)) window.location.replace("/levels.html");
 
 const canvas=document.querySelector("#game"),ctx=canvas.getContext("2d");
 const waveLabel=document.querySelector("#wave"),energyLabel=document.querySelector("#energy"),coreLabel=document.querySelector("#core"),heroLabel=document.querySelector("#hero-hp"),message=document.querySelector("#message");
 const startButton=document.querySelector("#start"),skillButton=document.querySelector("#hero-skill"),speedButton=document.querySelector("#game-speed"),upgradeButton=document.querySelector("#upgrade-tower");
 const towerCard=document.querySelector("#tower-card"),removeButton=document.querySelector("#remove-tower"),buildStatus=document.querySelector("#build-status");
 let game=createGame(),last=performance.now(),towerMode="build",selectedSlotId=null,pulseFxUntil=0,lastShownEnergy=game.energy,energyFlashUntil=0;
-const SPEED_STEPS=[1,2,3];let speedIndex=0,gameSpeed=SPEED_STEPS[speedIndex];
+const SPEED_STEPS=[1,2,3];let speedIndex=0,gameSpeed=SPEED_STEPS[speedIndex],victoryRecorded=false;
 
 const iso=({x,z})=>({x:canvas.width/2+(x-z)*27,y:334+(x+z)*13.5});
 const unIso=(px,py)=>{const u=(px-canvas.width/2)/27,v=(py-334)/13.5;return{x:(u+v)/2,z:(v-u)/2};};
@@ -51,6 +53,7 @@ function render(now){
 }
 
 function updateUi(){
+  if(game.status==="won"&&!victoryRecorded){completeStage(3);victoryRecorded=true;}
   if(game.energy!==lastShownEnergy){energyFlashUntil=performance.now()+450;lastShownEnergy=game.energy;}
   energyLabel.textContent=`Energy ${game.energy} / ${CONFIG.maxEnergy}`;
   energyLabel.classList.toggle("energy-flash",performance.now()<energyFlashUntil);
@@ -73,7 +76,7 @@ function updateUi(){
     ? (tower.level>=CONFIG.maxTowerLevel?`${selectedSlotId} MAX LEVEL`:`Upgrade ${selectedSlotId} → L2 · ${CONFIG.towerUpgradeCost}⚡`)
     : `Upgrade selected tower · ${CONFIG.towerUpgradeCost}⚡`;
 
-  if(game.status==="won")message.textContent="STAGE 03 COMPLETE — Energy economy survived.";
+  if(game.status==="won")message.textContent="STAGE 03 COMPLETE — Stage 04 Mini-Boss unlocked.";
   else if(game.status==="lost")message.textContent="DEFEAT — GRAM Core destroyed.";
   else if(game.status==="between"&&game.lastWaveBonus>0)message.textContent=`Wave cleared · +${game.lastWaveBonus} Energy bonus · spend before the next wave.`;
   else if(game.status==="playing")message.textContent="Kills generate Energy. Decide between a new tower and an upgrade.";
@@ -121,4 +124,4 @@ upgradeButton.addEventListener("click",()=>{
 });
 towerCard.addEventListener("click",()=>setTowerMode("build"));
 removeButton.addEventListener("click",()=>setTowerMode("remove"));
-document.querySelector("#restart").addEventListener("click",()=>{game=createGame();selectedSlotId=null;pulseFxUntil=0;lastShownEnergy=game.energy;setTowerMode("build");last=performance.now();});
+document.querySelector("#restart").addEventListener("click",()=>{game=createGame();selectedSlotId=null;pulseFxUntil=0;lastShownEnergy=game.energy;victoryRecorded=false;setTowerMode("build");last=performance.now();});
