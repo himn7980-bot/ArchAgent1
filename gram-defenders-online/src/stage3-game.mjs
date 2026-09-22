@@ -1,9 +1,9 @@
 import { MAP, distance, samplePathWithOffset } from "./stage3-map.mjs";
 
 export const ENEMY_TYPES = Object.freeze({
-  scout: Object.freeze({ id:"scout", label:"Scout", combat:"melee", health:95, speed:0.026, damage:10, attackCooldown:1.05, interceptRange:1.55, energyReward:4 }),
-  archer: Object.freeze({ id:"archer", label:"Archer", combat:"ranged", health:115, speed:0.021, damage:12, attackCooldown:1.30, attackRange:5.2, energyReward:6 }),
-  brute: Object.freeze({ id:"brute", label:"Brute", combat:"melee", health:205, speed:0.017, damage:22, attackCooldown:1.20, interceptRange:1.75, energyReward:9 })
+  scout: Object.freeze({ id:"scout", label:"Scout", combat:"melee", health:95, speed:0.026, damage:10, attackCooldown:1.05, interceptRange:1.55, energyReward:2 }),
+  archer: Object.freeze({ id:"archer", label:"Archer", combat:"ranged", health:115, speed:0.021, damage:12, attackCooldown:1.30, attackRange:5.2, energyReward:3 }),
+  brute: Object.freeze({ id:"brute", label:"Brute", combat:"melee", health:205, speed:0.017, damage:22, attackCooldown:1.20, interceptRange:1.75, energyReward:5 })
 });
 
 const LANE_OFFSETS = Object.freeze([-1.0,-0.55,0,0.55,1.0]);
@@ -26,8 +26,8 @@ export const CONFIG = Object.freeze({
   heroMoveSpeed:4.2, heroGuardRadius:3.6, heroRespawnDelay:15,
   heroSkillDamage:100, heroSkillRadius:2.6, heroSkillCooldown:10,
   maxTowers:3, maxTowerLevel:2,
-  startEnergy:100, maxEnergy:200, towerBuildCost:40, towerUpgradeCost:35,
-  waveEnergyBonus:Object.freeze([20,25,30])
+  startEnergy:90, maxEnergy:160, towerBuildCost:35, towerUpgradeCost:30,
+  waveEnergyBonus:Object.freeze([12,15,18])
 });
 
 function addEnergy(game, amount) {
