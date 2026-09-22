@@ -62,3 +62,6 @@ footer p { width:100%; margin:0; color:#90a9bc; font-size:12px; text-align:cente
 .boss-title span { color:#d9b7ff; font-size:10px; font-weight:900; }
 .boss-track { height:10px; border-radius:99px; overflow:hidden; background:#21172e; border:1px solid #583c73; }
 .boss-fill { height:100%; width:100%; background:linear-gradient(90deg,#8f6dff,#e264ff); transition:width .12s linear; }
+
+.stage-stars { margin-top:10px; font-size:20px; letter-spacing:.08em; color:#526d80; }
+.stage-stars.earned { color:#ffd86b; text-shadow:0 0 14px #ffd86b44; }
