@@ -131,7 +131,7 @@ function render(now) {
   for (const enemy of game.enemies) {
     const p = iso(enemy.position);
     const type = ENEMY_TYPES[enemy.type];
-    const enemyColor = enemy.type === "scout" ? "#ffcf5a" : enemy.type === "raider" ? "#ff6b7f" : "#b88cff";
+    const enemyColor = enemy.type === "scout" ? "#ffcf5a" : enemy.type === "archer" ? "#74d7ff" : "#b88cff";
     ctx.save(); ctx.shadowColor = enemyColor; ctx.shadowBlur = enemy.engaged ? 20 : 10;
     ctx.beginPath(); ctx.arc(p.x, p.y, enemy.type === "brute" ? 15 : 12, 0, Math.PI * 2); ctx.fillStyle = enemyColor; ctx.fill();
     if (enemy.engaged) { ctx.strokeStyle = "#ffffff"; ctx.lineWidth = 2; ctx.stroke(); }
@@ -139,6 +139,21 @@ function render(now) {
     ctx.fillStyle = "#07111e"; ctx.fillRect(p.x - 18, p.y - 25, 36, 5);
     ctx.fillStyle = "#6dff9a"; ctx.fillRect(p.x - 18, p.y - 25, 36 * Math.max(0, enemy.health / enemy.maxHealth), 5);
     ctx.fillStyle = "#dceeff"; ctx.font = "700 9px system-ui"; ctx.textAlign = "center"; ctx.fillText(type.label, p.x, p.y + 25);
+    if (enemy.engagement === "ranged" && enemy.attackCooldown > type.attackCooldown * 0.68) {
+      const heroP = iso(game.hero.position);
+      ctx.save();
+      ctx.strokeStyle = "#9fe8ff";
+      ctx.lineWidth = 2.5;
+      ctx.shadowColor = "#70d8ff";
+      ctx.shadowBlur = 10;
+      ctx.beginPath();
+      ctx.moveTo(p.x, p.y - 8);
+      const mx = p.x + (heroP.x - p.x) * 0.58;
+      const my = p.y + (heroP.y - p.y) * 0.58;
+      ctx.lineTo(mx, my - 4);
+      ctx.stroke();
+      ctx.restore();
+    }
   }
   for (const tower of game.towers) {
     const towerSlot = MAP.towerSlots.find((slot) => slot.id === tower.slotId);
@@ -177,7 +192,7 @@ function updateUi() {
   const cooldown = game.hero.skillCooldown;
   skillButton.disabled = game.status !== "playing" || Boolean(game.hero.manualDestination) || game.hero.downTimer > 0 || cooldown > 0;
   skillButton.textContent = cooldown > 0 ? `GRAM Pulse · ${cooldown.toFixed(1)}s` : "GRAM Pulse";
-  message.textContent = game.status === "won" ? "VICTORY — Map 01 secured." : game.status === "lost" ? "DEFEAT — GRAM Core destroyed." : game.status === "between" ? "Wave cleared. Set VOLYA's guard point and continue." : game.status === "playing" ? "VOLYA auto-chases one enemy inside the cyan guard radius; the rest keep moving." : "Tap anywhere to set VOLYA's guard point, then start Wave 1.";
+  message.textContent = game.status === "won" ? "VICTORY — Map 01 secured." : game.status === "lost" ? "DEFEAT — GRAM Core destroyed." : game.status === "between" ? "Wave cleared. Set VOLYA's guard point and continue." : game.status === "playing" ? "Enemies use lane offsets. Archers can stop and fire from outside VOLYA's guard radius." : "Tap anywhere to set VOLYA's guard point, then start Wave 1.";
 }
 
 function loop(now) { const dt = (now - last) / 1000; last = now; updateGame(game, dt); render(now); updateUi(); requestAnimationFrame(loop); }
