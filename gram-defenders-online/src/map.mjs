@@ -8,10 +8,6 @@ export const MAP = Object.freeze({
     { x: 5, z: -2 }, { x: 10, z: -2 }
   ],
   core: { x: 13, z: -6 },
-  heroNodes: [
-    { id: "H1", x: -9, z: 5 }, { id: "H2", x: -4, z: 0 },
-    { id: "H3", x: 2, z: -4 }, { id: "H4", x: 9, z: -4 }
-  ],
   towerSlots: [
     { id: "T1", x: -11, z: 1 }, { id: "T2", x: -5, z: 5 },
     { id: "T3", x: 2, z: 2 }, { id: "T4", x: 7, z: 1 },
