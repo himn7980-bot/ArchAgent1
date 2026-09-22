@@ -3,8 +3,8 @@ export const BASE_ENEMIES = Object.freeze({
   archer:Object.freeze({id:"archer",label:"Archer",combat:"ranged",health:120,speed:.021,damage:12,attackCooldown:1.30,attackRange:5.2,energyReward:3,color:"#74d7ff"}),
   brute:Object.freeze({id:"brute",label:"Brute",combat:"melee",health:215,speed:.017,damage:22,attackCooldown:1.20,interceptRange:1.75,energyReward:5,color:"#b88cff"}),
   shieldguard:Object.freeze({id:"shieldguard",label:"Shieldguard",combat:"melee",health:175,shield:120,speed:.016,damage:18,attackCooldown:1.18,interceptRange:1.72,energyReward:7,color:"#72e0b2"}),
-  warden:Object.freeze({id:"warden",label:"WARDEN",combat:"ranged",elite:true,health:980,speed:.013,damage:26,attackCooldown:1.10,attackRange:6.3,energyReward:30,color:"#f08cff",armoredAbove:.55,towerDamageMultiplier:.70,coreDamage:2}),
-  coretyrant:Object.freeze({id:"coretyrant",label:"CORE TYRANT",combat:"melee",elite:true,health:1800,speed:.0105,damage:40,attackCooldown:1.0,interceptRange:2.0,energyReward:50,color:"#ff5e8a",armoredAbove:.70,towerDamageMultiplier:.60,coreDamage:4,enrageBelow:.50,enrageSpeedMultiplier:1.55,enrageAttackCooldown:.62})
+  warden:Object.freeze({id:"warden",label:"WARDEN",combat:"ranged",elite:true,health:980,speed:.013,damage:26,attackCooldown:1.10,attackRange:6.3,energyReward:30,color:"#f08cff",armoredAbove:.55,towerDamageMultiplier:.70}),
+  coretyrant:Object.freeze({id:"coretyrant",label:"CORE TYRANT",combat:"melee",elite:true,health:1800,speed:.0105,damage:40,attackCooldown:1.0,interceptRange:2.0,energyReward:50,color:"#ff5e8a",armoredAbove:.70,towerDamageMultiplier:.60,enrageBelow:.50,enrageSpeedMultiplier:1.55,enrageAttackCooldown:.62})
 });
 
 const TOWER_LEVELS = Object.freeze({
