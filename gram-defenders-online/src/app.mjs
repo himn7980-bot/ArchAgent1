@@ -1,5 +1,5 @@
 import { MAP, PATH, distance } from "./map.mjs";
-import { formatStars, getStageStars, unlocksNextStage } from "./stage-rating.mjs";
+import { formatStars, getStageStars } from "./stage-rating.mjs";
 import { buildTower, CONFIG, createGame, ENEMY_TYPES, moveHero, removeTower, startWave, updateGame, useHeroSkill, WAVES } from "./game.mjs";
 import { completeStage } from "./progression.mjs";
 
@@ -195,7 +195,7 @@ function updateUi() {
     const mapLink = document.querySelector(".stage-link");
     if (mapLink) {
       mapLink.href = `/levels.html?completed=1&stars=${game.stars}`;
-      mapLink.textContent = unlocksNextStage(game.stars) ? "Continue · Stage 02" : "Land 01 Map · ★★★ required";
+      mapLink.textContent = "Continue · Stage 02";
     }
   }
   waveLabel.textContent = `Wave ${game.wave} / ${WAVES.length}`;
@@ -208,7 +208,7 @@ function updateUi() {
   const cooldown = game.hero.skillCooldown;
   skillButton.disabled = game.status !== "playing" || Boolean(game.hero.manualDestination) || game.hero.downTimer > 0 || cooldown > 0;
   skillButton.textContent = cooldown > 0 ? `GRAM Pulse · ${cooldown.toFixed(1)}s` : "GRAM Pulse";
-  message.textContent = game.status === "won" ? (unlocksNextStage(game.stars) ? `VICTORY · ${formatStars(game.stars)} · Stage 02 unlocked.` : `VICTORY · ${formatStars(game.stars)} · Get ★★★ to unlock Stage 02.`) : game.status === "lost" ? "DEFEAT · 10 enemies escaped." : game.status === "between" ? "Wave cleared. Set VOLYA's guard point and continue." : game.status === "playing" ? "Enemies use lane offsets. Archers can stop and fire from outside VOLYA's guard radius." : "Tap anywhere to set VOLYA's guard point, then start Wave 1.";
+  message.textContent = game.status === "won" ? `VICTORY · ${formatStars(game.stars)} · Stage 02 unlocked.` : game.status === "lost" ? "DEFEAT · 10 enemies escaped." : game.status === "between" ? "Wave cleared. Set VOLYA's guard point and continue." : game.status === "playing" ? "Enemies use lane offsets. Archers can stop and fire from outside VOLYA's guard radius." : "Tap anywhere to set VOLYA's guard point, then start Wave 1.";
 }
 
 function advanceSimulation(realDt) {
