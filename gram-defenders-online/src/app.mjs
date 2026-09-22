@@ -1,10 +1,11 @@
 import { MAP, PATH, distance } from "./map.mjs";
-import { buildTower, CONFIG, createGame, moveHero, removeTower, startWave, updateGame, useHeroSkill } from "./game.mjs";
+import { buildTower, CONFIG, createGame, ENEMY_TYPES, moveHero, removeTower, startWave, updateGame, useHeroSkill, WAVES } from "./game.mjs";
 
 const canvas = document.querySelector("#game");
 const ctx = canvas.getContext("2d");
 const waveLabel = document.querySelector("#wave");
 const coreLabel = document.querySelector("#core");
+const heroLabel = document.querySelector("#hero-hp");
 const message = document.querySelector("#message");
 const startButton = document.querySelector("#start");
 const skillButton = document.querySelector("#hero-skill");
@@ -18,6 +19,11 @@ let selectedSlotId = null;
 let pulseFxUntil = 0;
 
 const iso = ({ x, z }) => ({ x: canvas.width / 2 + (x - z) * 27, y: 334 + (x + z) * 13.5 });
+const unIso = (px, py) => {
+  const u = (px - canvas.width / 2) / 27;
+  const v = (py - 334) / 13.5;
+  return { x: (u + v) / 2, z: (v - u) / 2 };
+};
 
 function pathStroke(points, color, width, smooth = false) {
   const projected = points.map(iso);
@@ -101,11 +107,18 @@ function render(now) {
   marker(MAP.spawn, "SP", "#ff5d78", 20); marker(MAP.core, "G", "#8f6dff", 27);
   const selectedSlot = MAP.towerSlots.find((slot) => slot.id === selectedSlotId);
   if (selectedSlot && game.towers.some((tower) => tower.slotId === selectedSlotId)) drawTowerRange(selectedSlot);
-  MAP.towerSlots.forEach(drawTower); MAP.heroNodes.forEach((node) => marker(node, node.id, "#3ad8ff", 16));
+  MAP.towerSlots.forEach(drawTower);
   for (const enemy of game.enemies) {
-    const p = iso(enemy.position); ctx.save(); ctx.shadowColor = "#ff516c"; ctx.shadowBlur = 10;
-    ctx.beginPath(); ctx.arc(p.x, p.y, 12, 0, Math.PI * 2); ctx.fillStyle = "#ff516c"; ctx.fill(); ctx.restore();
-    ctx.fillStyle = "#07111e"; ctx.fillRect(p.x - 16, p.y - 23, 32, 5); ctx.fillStyle = "#6dff9a"; ctx.fillRect(p.x - 16, p.y - 23, 32 * Math.max(0, enemy.health / CONFIG.enemyHealth), 5);
+    const p = iso(enemy.position);
+    const type = ENEMY_TYPES[enemy.type];
+    const enemyColor = enemy.type === "scout" ? "#ffcf5a" : enemy.type === "raider" ? "#ff6b7f" : "#b88cff";
+    ctx.save(); ctx.shadowColor = enemyColor; ctx.shadowBlur = enemy.engaged ? 20 : 10;
+    ctx.beginPath(); ctx.arc(p.x, p.y, enemy.type === "brute" ? 15 : 12, 0, Math.PI * 2); ctx.fillStyle = enemyColor; ctx.fill();
+    if (enemy.engaged) { ctx.strokeStyle = "#ffffff"; ctx.lineWidth = 2; ctx.stroke(); }
+    ctx.restore();
+    ctx.fillStyle = "#07111e"; ctx.fillRect(p.x - 18, p.y - 25, 36, 5);
+    ctx.fillStyle = "#6dff9a"; ctx.fillRect(p.x - 18, p.y - 25, 36 * Math.max(0, enemy.health / enemy.maxHealth), 5);
+    ctx.fillStyle = "#dceeff"; ctx.font = "700 9px system-ui"; ctx.textAlign = "center"; ctx.fillText(type.label, p.x, p.y + 25);
   }
   for (const tower of game.towers) {
     const towerSlot = MAP.towerSlots.find((slot) => slot.id === tower.slotId);
@@ -113,22 +126,27 @@ function render(now) {
     if (towerTarget && tower.cooldown > CONFIG.towerCooldown * 0.72) beam(towerSlot, towerTarget.position, "#ffc45c");
   }
   const heroTarget = game.enemies.filter((e) => distance(e.position, game.hero.position) <= CONFIG.heroRange).sort((a, b) => b.progress - a.progress)[0];
-  if (!game.hero.to && heroTarget && game.hero.cooldown > CONFIG.heroCooldown * 0.72) beam(game.hero.position, heroTarget.position, "#55e7ff");
-  const hp = iso(game.hero.position); ctx.save(); ctx.shadowColor = "#44e9ff"; ctx.shadowBlur = 20;
-  ctx.beginPath(); ctx.arc(hp.x, hp.y - 11, 19, 0, Math.PI * 2); ctx.fillStyle = "#e8f7ff"; ctx.fill(); ctx.shadowBlur = 0;
-  ctx.fillStyle = "#135bd6"; ctx.fillRect(hp.x - 15, hp.y - 9, 30, 34); ctx.fillStyle = "#fff"; ctx.font = "900 11px system-ui"; ctx.textAlign = "center"; ctx.fillText("V", hp.x, hp.y + 11); ctx.restore();
+  const hp = iso(game.hero.position); ctx.save(); ctx.shadowColor = game.hero.downTimer > 0 ? "#ff6b7f" : "#44e9ff"; ctx.shadowBlur = 20;
+  ctx.beginPath(); ctx.arc(hp.x, hp.y - 11, 19, 0, Math.PI * 2); ctx.fillStyle = game.hero.downTimer > 0 ? "#5f2634" : "#e8f7ff"; ctx.fill(); ctx.shadowBlur = 0;
+  ctx.fillStyle = game.hero.downTimer > 0 ? "#3d1821" : "#135bd6"; ctx.fillRect(hp.x - 15, hp.y - 9, 30, 34); ctx.fillStyle = "#fff"; ctx.font = "900 11px system-ui"; ctx.textAlign = "center"; ctx.fillText("V", hp.x, hp.y + 11);
+  ctx.fillStyle = "#07111e"; ctx.fillRect(hp.x - 23, hp.y - 42, 46, 6); ctx.fillStyle = "#58f29b"; ctx.fillRect(hp.x - 23, hp.y - 42, 46 * Math.max(0, game.hero.health / CONFIG.heroMaxHealth), 6); ctx.restore();
+  if (!game.hero.destination && heroTarget && game.hero.cooldown > CONFIG.heroCooldown * 0.58) {
+    const target = iso(heroTarget.position); ctx.save(); ctx.strokeStyle = "#dffaff"; ctx.lineWidth = 5; ctx.lineCap = "round";
+    ctx.beginPath(); ctx.moveTo(hp.x + 5, hp.y - 14); ctx.lineTo((hp.x + target.x) / 2, (hp.y + target.y) / 2 - 8); ctx.stroke(); ctx.restore();
+  }
   drawPulse(now);
 }
 
 function updateUi() {
-  waveLabel.textContent = `Wave ${game.wave} / 3`;
+  waveLabel.textContent = `Wave ${game.wave} / ${WAVES.length}`;
   coreLabel.textContent = `Core ${"◆".repeat(Math.max(0, game.coreHealth))}${"◇".repeat(Math.max(0, CONFIG.coreHealth - game.coreHealth))}`;
-  const clear = !game.pending && !game.enemies.length; startButton.disabled = !clear || game.status === "won" || game.status === "lost";
-  startButton.textContent = game.wave >= 3 ? "All Waves Deployed" : `Start Wave ${game.wave + 1}`;
+  heroLabel.textContent = game.hero.downTimer > 0 ? `VOLYA respawn ${game.hero.downTimer.toFixed(1)}s` : `VOLYA ${Math.ceil(game.hero.health)} / ${CONFIG.heroMaxHealth}`;
+  const clear = !game.spawnQueue.length && !game.enemies.length; startButton.disabled = !clear || game.status === "won" || game.status === "lost";
+  startButton.textContent = game.wave >= WAVES.length ? "All Waves Deployed" : `Start Wave ${game.wave + 1}`;
   const cooldown = game.hero.skillCooldown;
-  skillButton.disabled = game.status !== "playing" || Boolean(game.hero.to) || cooldown > 0;
+  skillButton.disabled = game.status !== "playing" || Boolean(game.hero.destination) || game.hero.downTimer > 0 || cooldown > 0;
   skillButton.textContent = cooldown > 0 ? `GRAM Pulse · ${cooldown.toFixed(1)}s` : "GRAM Pulse";
-  message.textContent = game.status === "won" ? "VICTORY — Map 01 secured." : game.status === "lost" ? "DEFEAT — GRAM Core destroyed." : game.status === "between" ? "Wave cleared. Reposition VOLYA and continue." : game.status === "playing" ? "Defend the GRAM Core." : "Select a Hero Node, then start the first wave.";
+  message.textContent = game.status === "won" ? "VICTORY — Map 01 secured." : game.status === "lost" ? "DEFEAT — GRAM Core destroyed." : game.status === "between" ? "Wave cleared. Reposition VOLYA anywhere and continue." : game.status === "playing" ? "Place VOLYA in the lane to block and fight enemies." : "Tap anywhere on the battlefield to position VOLYA, then start Wave 1.";
 }
 
 function loop(now) { const dt = (now - last) / 1000; last = now; updateGame(game, dt); render(now); updateUi(); requestAnimationFrame(loop); }
@@ -161,9 +179,7 @@ canvas.addEventListener("pointerdown", (event) => {
     }
     return;
   }
-  let closest = null; let best = 42;
-  for (const node of MAP.heroNodes) { const p = iso(node); const d = Math.hypot(x - p.x, y - p.y); if (d < best) { closest = node; best = d; } }
-  if (closest) moveHero(game, closest.id);
+  moveHero(game, unIso(x, y));
 });
 startButton.addEventListener("click", () => startWave(game));
 skillButton.addEventListener("click", () => { if (useHeroSkill(game)) pulseFxUntil = performance.now() + 450; });
