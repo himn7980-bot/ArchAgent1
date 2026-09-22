@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="description" content="GRAM Defenders Hero Squad, Tower Deck and upgrade stats.">
+  <title>GRAM Defenders — Loadout & Stats</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <main class="shell levels-shell">
+    <header>
+      <div><p class="eyebrow">META PROGRESSION · LOADOUT</p><h1>HERO SQUAD & TOWER DECK</h1></div>
+      <div class="hud">
+        <span id="coins">Coins 0</span>
+        <span id="gems">Gems 0</span>
+        <span id="materials">Materials 0</span>
+        <span id="power">Power 0</span>
+      </div>
+    </header>
+
+    <section class="levels-panel">
+      <div class="levels-heading">
+        <div>
+          <h2>Battle Loadout</h2>
+          <p>Coins + Materials upgrade Heroes and Tower Cards. Gems are reserved for premium/rare utility. Battle Energy stays inside each stage.</p>
+        </div>
+        <div class="levels-actions">
+          <a class="stage-link" href="/levels.html">Land 01 Map</a>
+          <button id="reset-meta" class="secondary">Reset test meta</button>
+        </div>
+      </div>
+
+      <div class="meta-section">
+        <h3>Hero Squad · 3 Slots</h3>
+        <div id="hero-slots" class="loadout-slots"></div>
+        <div id="hero-cards" class="collection-grid"></div>
+      </div>
+
+      <div class="meta-section">
+        <h3>Tower Deck · 4 Cards</h3>
+        <div id="tower-slots" class="loadout-slots"></div>
+        <div id="tower-cards" class="collection-grid"></div>
+      </div>
+
+      <div class="meta-note">
+        <strong>Economy separation:</strong>
+        <span>Coins = normal upgrades · Materials = upgrade resource · Gems = premium/rare utility · Battle Energy = build/upgrade decisions during a stage · Power = derived strength score, not a spendable currency.</span>
+      </div>
+    </section>
+  </main>
+  <script type="module" src="src/loadout.mjs"></script>
+</body>
+</html>
