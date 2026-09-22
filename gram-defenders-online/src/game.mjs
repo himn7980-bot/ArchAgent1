@@ -47,7 +47,7 @@ export const CONFIG = Object.freeze({
   heroCooldown: 0.72,
   heroMoveSpeed: 4.2,
   heroGuardRadius: 3.6,
-  heroRespawnDelay: 6,
+  heroRespawnDelay: 15,
   heroSkillDamage: 100,
   heroSkillRadius: 2.6,
   heroSkillCooldown: 10,
