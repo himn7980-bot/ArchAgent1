@@ -22,7 +22,7 @@ export const WAVES = Object.freeze([
 
 export const CONFIG = Object.freeze({
   coreHealth:4, heroMaxHealth:500, heroDamage:48, heroRange:1.18, heroCooldown:0.72,
-  heroMoveSpeed:4.2, heroGuardRadius:3.6, heroRespawnDelay:6,
+  heroMoveSpeed:4.2, heroGuardRadius:3.6, heroRespawnDelay:15,
   heroSkillDamage:100, heroSkillRadius:2.6, heroSkillCooldown:10,
   maxTowers:3, maxTowerLevel:2
 });
