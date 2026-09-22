@@ -23,7 +23,7 @@ const resetButton=document.querySelector("#reset-progress");
 
 function render(){
   const progress=getProgress();
-  const totalStars=Object.values(progress.bestStars||{}).reduce((sum,value)=>sum+Number(value||0),0);summary.textContent=`Unlocked through Stage ${progress.unlockedStage} · ${progress.completedStages.length} cleared · ${totalStars}★`;
+  const totalStars=Object.values(progress.bestStars||{}).reduce((sum,value)=>sum+Number(value||0),0);summary.textContent=`Unlocked through Stage ${progress.unlockedStage} · ${progress.completedStages.length} perfect clears · ${totalStars}★`;
   grid.innerHTML="";
 
   for(const stage of STAGES){
@@ -32,15 +32,15 @@ function render(){
     const card=document.createElement("article");
     card.className=`stage-card ${unlocked?"unlocked":"locked"} ${completed?"completed":""}`;
 
-    const state=completed?"CLEARED":unlocked?"UNLOCKED":"LOCKED";
     const stars=progress.bestStars?.[stage.id]||0;
+    const state=completed?"PERFECT CLEAR":unlocked?(stars>0?"REPLAY FOR ★★★":"UNLOCKED"):"LOCKED";
     card.innerHTML=`
       <div class="stage-number">${String(stage.id).padStart(2,"0")}</div>
       <div class="stage-copy">
         <span class="stage-state">${state}</span>
         <h3>${stage.title}</h3>
         <p>${stage.subtitle}</p>
-        <div class="stage-stars ${completed?"earned":""}">${completed?formatStars(stars):"☆☆☆"}</div>
+        <div class="stage-stars ${stars>0?"earned":""}">${formatStars(stars)}</div>
       </div>
     `;
 
@@ -48,7 +48,7 @@ function render(){
       const link=document.createElement("a");
       link.className="stage-play";
       link.href=stage.href;
-      link.textContent=completed?"Replay":"Play";
+      link.textContent=completed?"Replay":stars>0?"Replay for ★★★":"Play";
       card.appendChild(link);
     }else{
       const lock=document.createElement("span");
