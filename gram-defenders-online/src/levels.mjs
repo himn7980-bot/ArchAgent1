@@ -10,10 +10,10 @@ const STAGES = [
   { id:2, title:"Tower Upgrade", subtitle:"Unlock Tower Level 2", href:"/stage2.html", implemented:true },
   { id:3, title:"Energy Economy", subtitle:"Build / Upgrade Energy decisions", href:"/stage3.html", implemented:true },
   { id:4, title:"Mini-Boss", subtitle:"COREBREAKER elite encounter", href:"/stage4.html", implemented:true },
-  { id:5, title:"New Threat", subtitle:"New enemy / tactical rule · progression test", href:"/stage-placeholder.html?stage=5", implemented:true, prototypeOnly:true },
-  { id:6, title:"Combined Pressure", subtitle:"Mixed threat composition · progression test", href:"/stage-placeholder.html?stage=6", implemented:true, prototypeOnly:true },
-  { id:7, title:"Pre-Boss", subtitle:"Elite preparation stage · progression test", href:"/stage-placeholder.html?stage=7", implemented:true, prototypeOnly:true },
-  { id:8, title:"Main Boss", subtitle:"Land 01 boss encounter · progression test", href:"/stage-placeholder.html?stage=8", implemented:true, prototypeOnly:true }
+  { id:5, title:"Shielded Threat", subtitle:"Shieldguards · Tower Level 3", href:"/stage5.html", implemented:true },
+  { id:6, title:"Combined Pressure", subtitle:"Mixed melee / ranged / shielded pressure", href:"/stage6.html", implemented:true },
+  { id:7, title:"Pre-Boss", subtitle:"WARDEN ranged Elite encounter", href:"/stage7.html", implemented:true },
+  { id:8, title:"Main Boss", subtitle:"CORE TYRANT two-phase boss", href:"/stage8.html", implemented:true }
 ];
 
 const grid=document.querySelector("#stage-grid");
@@ -31,7 +31,7 @@ function render(){
     const card=document.createElement("article");
     card.className=`stage-card ${unlocked?"unlocked":"locked"} ${completed?"completed":""}`;
 
-    const state=completed?"CLEARED":unlocked?(stage.prototypeOnly?"UNLOCKED · PROGRESSION TEST":"UNLOCKED"):"LOCKED";
+    const state=completed?"CLEARED":unlocked?"UNLOCKED":"LOCKED";
     card.innerHTML=`
       <div class="stage-number">${String(stage.id).padStart(2,"0")}</div>
       <div class="stage-copy">
@@ -45,7 +45,7 @@ function render(){
       const link=document.createElement("a");
       link.className="stage-play";
       link.href=stage.href;
-      link.textContent=completed?(stage.prototypeOnly?"Retest":"Replay"):(stage.prototypeOnly?"Test unlock":"Play");
+      link.textContent=completed?"Replay":"Play";
       card.appendChild(link);
     }else{
       const lock=document.createElement("span");
