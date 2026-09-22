@@ -2,6 +2,8 @@ import { MAP, PATH, distance } from "./stage4-map.mjs";
 import { formatStars, getStageStars } from "./stage-rating.mjs";
 import { buildTower, canBuildTower, canUpgradeTower, CONFIG, createGame, ENEMY_TYPES, getElite, getTowerStats, moveHero, removeTower, startWave, updateGame, upgradeTower, useHeroSkill, WAVES } from "./stage4-game.mjs";
 import { completeStage, isStageUnlocked } from "./progression.mjs";
+import { grantStageReward } from "./meta-progression.mjs";
+import { formatStageReward } from "./reward-ui.mjs";
 if (!isStageUnlocked(4)) window.location.replace("/levels.html");
 
 const canvas=document.querySelector("#game"),ctx=canvas.getContext("2d");
@@ -10,7 +12,7 @@ const bossHud=document.querySelector("#boss-hud"),bossFill=document.querySelecto
 const startButton=document.querySelector("#start"),skillButton=document.querySelector("#hero-skill"),speedButton=document.querySelector("#game-speed"),upgradeButton=document.querySelector("#upgrade-tower");
 const towerCard=document.querySelector("#tower-card"),removeButton=document.querySelector("#remove-tower"),buildStatus=document.querySelector("#build-status");
 let game=createGame(),last=performance.now(),towerMode="build",selectedSlotId=null,pulseFxUntil=0,lastShownEnergy=game.energy,energyFlashUntil=0;
-const SPEED_STEPS=[1,2,3];let speedIndex=0,gameSpeed=SPEED_STEPS[speedIndex],victoryRecorded=false;
+const SPEED_STEPS=[1,2,3];let speedIndex=0,gameSpeed=SPEED_STEPS[speedIndex],victoryRecorded=false,lastStageReward=null;
 
 const iso=({x,z})=>({x:canvas.width/2+(x-z)*27,y:334+(x+z)*13.5});
 const unIso=(px,py)=>{const u=(px-canvas.width/2)/27,v=(py-334)/13.5;return{x:(u+v)/2,z:(v-u)/2};};
@@ -19,7 +21,7 @@ function pathStroke(points,color,width,smooth=false){const p=points.map(iso);ctx
 function polygon(points,fill,stroke,width=2){ctx.beginPath();points.forEach((p,i)=>i?ctx.lineTo(p.x,p.y):ctx.moveTo(p.x,p.y));ctx.closePath();ctx.fillStyle=fill;ctx.fill();ctx.strokeStyle=stroke;ctx.lineWidth=width;ctx.stroke();}
 function terrain(){const c=[{x:-15,z:-9},{x:15,z:-9},{x:15,z:9},{x:-15,z:9}].map(iso);polygon(c.map(p=>({x:p.x,y:p.y+24})),"#06111d","#102c42");polygon(c,"#102638","#35627f",3);}
 function marker(point,label,color,r=15){const p=iso(point);ctx.save();ctx.shadowColor=color;ctx.shadowBlur=12;ctx.beginPath();ctx.arc(p.x,p.y,r,0,Math.PI*2);ctx.fillStyle=color;ctx.fill();ctx.shadowBlur=0;ctx.strokeStyle="#dffaff";ctx.lineWidth=2;ctx.stroke();ctx.fillStyle="#04101b";ctx.font="800 12px system-ui";ctx.textAlign="center";ctx.textBaseline="middle";ctx.fillText(label,p.x,p.y);ctx.restore();}
-function drawTowerRange(slot,level){const p=iso(slot),stats=getTowerStats(level);ctx.save();ctx.beginPath();ctx.ellipse(p.x,p.y,stats.range*38,stats.range*19,0,0,Math.PI*2);ctx.fillStyle="#ffb23f18";ctx.fill();ctx.strokeStyle="#ffc45caa";ctx.lineWidth=2;ctx.setLineDash([9,7]);ctx.stroke();ctx.restore();}
+function drawTowerRange(slot,level){const p=iso(slot),stats=getTowerStats(level,game);ctx.save();ctx.beginPath();ctx.ellipse(p.x,p.y,stats.range*38,stats.range*19,0,0,Math.PI*2);ctx.fillStyle="#ffb23f18";ctx.fill();ctx.strokeStyle="#ffc45caa";ctx.lineWidth=2;ctx.setLineDash([9,7]);ctx.stroke();ctx.restore();}
 function drawTower(slot){const p=iso(slot),tower=game.towers.find(t=>t.slotId===slot.id);if(!tower)return marker(slot,slot.id,selectedSlotId===slot.id?"#9a6a25":"#6f5830",14);ctx.save();ctx.shadowColor=tower.level===2?"#fff0a3":"#ffb23f";ctx.shadowBlur=tower.level===2?28:18;polygon([{x:p.x-20,y:p.y+11},{x:p.x,y:p.y+22},{x:p.x+20,y:p.y+11},{x:p.x,y:p.y}],tower.level===2?"#d89618":"#a65d16","#ffd388");ctx.fillStyle=tower.level===2?"#ffe083":"#ffb23f";ctx.fillRect(p.x-9,p.y-27,18,34);ctx.beginPath();ctx.arc(p.x,p.y-29,tower.level===2?16:13,0,Math.PI*2);ctx.fill();ctx.shadowBlur=0;ctx.fillStyle="#112131";ctx.font="900 11px system-ui";ctx.textAlign="center";ctx.fillText(`${slot.id} L${tower.level}`,p.x,p.y+14);ctx.restore();}
 function beam(origin,target,color){const a=iso(origin),b=iso(target);ctx.save();ctx.strokeStyle=color;ctx.shadowColor=color;ctx.shadowBlur=14;ctx.globalAlpha=.78;ctx.lineWidth=4;ctx.beginPath();ctx.moveTo(a.x,a.y-18);ctx.lineTo(b.x,b.y);ctx.stroke();ctx.restore();}
 function drawGuard(){const a=iso(game.hero.anchor);ctx.save();ctx.beginPath();ctx.ellipse(a.x,a.y,CONFIG.heroGuardRadius*38,CONFIG.heroGuardRadius*19,0,0,Math.PI*2);ctx.fillStyle="#47ddff10";ctx.fill();ctx.strokeStyle="#55e7ff88";ctx.lineWidth=2;ctx.setLineDash([10,8]);ctx.stroke();ctx.restore();}
@@ -55,14 +57,14 @@ function render(now){
 }
 
 function updateUi(){
-  if(game.status==="won"&&!victoryRecorded){completeStage(4,game.stars);victoryRecorded=true;const mapLink=document.querySelector(".stage-link");if(mapLink){mapLink.href=`/levels.html?completed=4&stars=${game.stars}`;mapLink.textContent="Continue · Stage 05";}}
+  if(game.status==="won"&&!victoryRecorded){completeStage(4,game.stars);lastStageReward=grantStageReward(4,game.stars).reward;victoryRecorded=true;const mapLink=document.querySelector(".stage-link");if(mapLink){mapLink.href=`/levels.html?completed=4&stars=${game.stars}`;mapLink.textContent="Continue · Stage 05";}}
   if(game.energy!==lastShownEnergy){energyFlashUntil=performance.now()+450;lastShownEnergy=game.energy;}
   energyLabel.textContent=`Energy ${game.energy} / ${CONFIG.maxEnergy}`;
   energyLabel.classList.toggle("energy-flash",performance.now()<energyFlashUntil);
 
   waveLabel.textContent=`Wave ${game.wave} / ${WAVES.length}`;
   coreLabel.textContent=`Leaks ${game.leaks}/${CONFIG.maxLeaks} · ${formatStars(getStageStars(game.leaks))}`;
-  heroLabel.textContent=game.hero.downTimer>0?`VOLYA respawn ${game.hero.downTimer.toFixed(1)}s`:`VOLYA ${Math.ceil(game.hero.health)} / ${CONFIG.heroMaxHealth} · ${game.hero.state.toUpperCase()}`;
+  heroLabel.textContent=game.hero.downTimer>0?`VOLYA respawn ${game.hero.downTimer.toFixed(1)}s`:`VOLYA ${Math.ceil(game.hero.health)} / ${game.hero.maxHealth} · ${game.hero.state.toUpperCase()}`;
 
   const clear=!game.spawnQueue.length&&!game.enemies.length;
   startButton.disabled=!clear||game.status==="won"||game.status==="lost";
@@ -85,7 +87,7 @@ function updateUi(){
     bossFill.style.width=`${ratio*100}%`;
     bossState.textContent=ratio>type.armoredAbove?"ARMORED · TOWER DMG 65%":"ARMOR BROKEN";
   }
-  if(game.status==="won")message.textContent=`STAGE 04 COMPLETE · ${formatStars(game.stars)} · Stage 05 unlocked.`;
+  if(game.status==="won")message.textContent=`STAGE 04 COMPLETE · ${formatStars(game.stars)} · ${formatStageReward(lastStageReward)} · Stage 05 unlocked.`;
   else if(game.status==="lost")message.textContent="DEFEAT · 10 enemies escaped.";
   else if(game.status==="between"&&game.lastWaveBonus>0)message.textContent=`Wave cleared · +${game.lastWaveBonus} Energy bonus · spend before the next wave.`;
   else if(game.status==="playing")message.textContent=getElite(game)?"COREBREAKER active — use VOLYA while its armor weakens Tower damage.":"Survive the waves and prepare Energy for the Mini-Boss.";
@@ -133,4 +135,4 @@ upgradeButton.addEventListener("click",()=>{
 });
 towerCard.addEventListener("click",()=>setTowerMode("build"));
 removeButton.addEventListener("click",()=>setTowerMode("remove"));
-document.querySelector("#restart").addEventListener("click",()=>{game=createGame();selectedSlotId=null;pulseFxUntil=0;lastShownEnergy=game.energy;victoryRecorded=false;setTowerMode("build");last=performance.now();});
+document.querySelector("#restart").addEventListener("click",()=>{game=createGame();selectedSlotId=null;pulseFxUntil=0;lastShownEnergy=game.energy;victoryRecorded=false;lastStageReward=null;setTowerMode("build");last=performance.now();});
