@@ -1,5 +1,6 @@
 import { MAP, distance, samplePathWithOffset } from "./map.mjs";
 import { STAGE_RATING, getStageStars } from "./stage-rating.mjs";
+import { applyHeroDefense, createBattleMeta, getEffectiveTowerStats, getHeroAttackDamage } from "./battle-meta.mjs";
 
 export const ENEMY_TYPES = Object.freeze({
   scout: Object.freeze({
@@ -82,8 +83,10 @@ function clampBattlefieldPoint(point) {
 
 export function createGame() {
   const start = { x: -7.2, z: 3.8 };
+  const battleMeta = createBattleMeta();
   return {
     status: "ready",
+    battleMeta,
     leaks: 0, stars: null, wave: 0,
     enemies: [],
     spawnQueue: [],
@@ -95,7 +98,11 @@ export function createGame() {
       manualDestination: null,
       targetId: null,
       state: "guard",
-      health: CONFIG.heroMaxHealth,
+      health: battleMeta.hero.hp,
+      maxHealth: battleMeta.hero.hp,
+      critCharge: 0,
+      lastAttackCrit: false,
+      lastDamageTaken: 0,
       cooldown: 0,
       skillCooldown: 0,
       downTimer: 0
@@ -146,7 +153,7 @@ export function useHeroSkill(game) {
   if (game.status !== "playing" || game.hero.state === "relocating" || game.hero.downTimer > 0 || game.hero.skillCooldown > 0) return false;
   const targets = game.enemies.filter((enemy) => distance(enemy.position, game.hero.position) <= CONFIG.heroSkillRadius);
   if (!targets.length) return false;
-  for (const target of targets) target.health -= CONFIG.heroSkillDamage;
+  for (const target of targets) target.health -= game.battleMeta.hero.skillDamage;
   game.hero.skillCooldown = CONFIG.heroSkillCooldown;
   return true;
 }
@@ -254,7 +261,7 @@ function updateRespawn(game, dt) {
   if (game.hero.downTimer <= 0) return;
   game.hero.downTimer = Math.max(0, game.hero.downTimer - dt);
   if (game.hero.downTimer === 0) {
-    game.hero.health = CONFIG.heroMaxHealth;
+    game.hero.health = game.hero.maxHealth;
     game.hero.position = { ...game.hero.anchor };
     game.hero.manualDestination = null;
     game.hero.targetId = null;
@@ -301,7 +308,7 @@ export function updateGame(game, dt) {
         enemy.engaged = true;
         enemy.engagement = "ranged";
         if (enemy.attackCooldown <= 0) {
-          game.hero.health -= type.damage;
+          applyHeroDefense(game, type.damage);
           enemy.attackCooldown = type.attackCooldown;
         }
       } else {
@@ -316,7 +323,7 @@ export function updateGame(game, dt) {
       enemy.engaged = true;
       enemy.engagement = "melee";
       if (enemy.attackCooldown <= 0) {
-        game.hero.health -= type.damage;
+        applyHeroDefense(game, type.damage);
         enemy.attackCooldown = type.attackCooldown;
       }
     } else {
@@ -328,8 +335,8 @@ export function updateGame(game, dt) {
     const target = game.enemies.find((enemy) => enemy.id === game.hero.targetId && enemy.health > 0);
     game.hero.cooldown = Math.max(0, game.hero.cooldown - step);
     if (target && distance(target.position, game.hero.position) <= CONFIG.heroRange && game.hero.cooldown <= 0) {
-      target.health -= CONFIG.heroDamage;
-      game.hero.cooldown = CONFIG.heroCooldown;
+      target.health -= getHeroAttackDamage(game);
+      game.hero.cooldown = game.battleMeta.hero.cooldown;
     }
   } else {
     game.hero.cooldown = Math.max(0, game.hero.cooldown - step);
@@ -337,7 +344,8 @@ export function updateGame(game, dt) {
 
   for (const tower of game.towers) {
     const towerPosition = MAP.towerSlots.find((slot) => slot.id === tower.slotId);
-    attackEnemy(tower, game.enemies, towerPosition, CONFIG.towerRange, CONFIG.towerDamage, CONFIG.towerCooldown, step);
+    const stats = getEffectiveTowerStats(game, 1, { damage: CONFIG.towerDamage, range: CONFIG.towerRange, cooldown: CONFIG.towerCooldown });
+    attackEnemy(tower, game.enemies, towerPosition, stats.range, stats.damage, stats.cooldown, step);
   }
 
   const deadTarget = game.hero.targetId && game.enemies.some((enemy) => enemy.id === game.hero.targetId && enemy.health <= 0);
