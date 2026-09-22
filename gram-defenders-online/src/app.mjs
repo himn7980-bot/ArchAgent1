@@ -1,5 +1,6 @@
 import { MAP, PATH, distance } from "./map.mjs";
 import { buildTower, CONFIG, createGame, ENEMY_TYPES, moveHero, removeTower, startWave, updateGame, useHeroSkill, WAVES } from "./game.mjs";
+import { completeStage } from "./progression.mjs";
 
 const canvas = document.querySelector("#game");
 const ctx = canvas.getContext("2d");
@@ -21,6 +22,7 @@ let pulseFxUntil = 0;
 const SPEED_STEPS = [1, 2, 3];
 let speedIndex = 0;
 let gameSpeed = SPEED_STEPS[speedIndex];
+let victoryRecorded = false;
 
 const iso = ({ x, z }) => ({ x: canvas.width / 2 + (x - z) * 27, y: 334 + (x + z) * 13.5 });
 const unIso = (px, py) => {
@@ -186,6 +188,7 @@ function render(now) {
 }
 
 function updateUi() {
+  if (game.status === "won" && !victoryRecorded) { completeStage(1); victoryRecorded = true; }
   waveLabel.textContent = `Wave ${game.wave} / ${WAVES.length}`;
   coreLabel.textContent = `Core ${"◆".repeat(Math.max(0, game.coreHealth))}${"◇".repeat(Math.max(0, CONFIG.coreHealth - game.coreHealth))}`;
   heroLabel.textContent = game.hero.downTimer > 0
@@ -196,7 +199,7 @@ function updateUi() {
   const cooldown = game.hero.skillCooldown;
   skillButton.disabled = game.status !== "playing" || Boolean(game.hero.manualDestination) || game.hero.downTimer > 0 || cooldown > 0;
   skillButton.textContent = cooldown > 0 ? `GRAM Pulse · ${cooldown.toFixed(1)}s` : "GRAM Pulse";
-  message.textContent = game.status === "won" ? "VICTORY — Map 01 secured." : game.status === "lost" ? "DEFEAT — GRAM Core destroyed." : game.status === "between" ? "Wave cleared. Set VOLYA's guard point and continue." : game.status === "playing" ? "Enemies use lane offsets. Archers can stop and fire from outside VOLYA's guard radius." : "Tap anywhere to set VOLYA's guard point, then start Wave 1.";
+  message.textContent = game.status === "won" ? "VICTORY — Stage 02 unlocked." : game.status === "lost" ? "DEFEAT — GRAM Core destroyed." : game.status === "between" ? "Wave cleared. Set VOLYA's guard point and continue." : game.status === "playing" ? "Enemies use lane offsets. Archers can stop and fire from outside VOLYA's guard radius." : "Tap anywhere to set VOLYA's guard point, then start Wave 1.";
 }
 
 function advanceSimulation(realDt) {
@@ -258,4 +261,4 @@ speedButton.addEventListener("click", () => {
 });
 towerCard.addEventListener("click", () => setTowerMode("build"));
 removeButton.addEventListener("click", () => setTowerMode("remove"));
-document.querySelector("#restart").addEventListener("click", () => { game = createGame(); selectedSlotId = null; pulseFxUntil = 0; setTowerMode("build"); last = performance.now(); });
+document.querySelector("#restart").addEventListener("click", () => { game = createGame(); selectedSlotId = null; pulseFxUntil = 0; victoryRecorded = false; setTowerMode("build"); last = performance.now(); });
