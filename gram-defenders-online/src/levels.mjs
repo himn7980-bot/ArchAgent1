@@ -1,4 +1,9 @@
-import { getProgress, resetProgress } from "./progression.mjs";
+import { applyCompletionFromSearch, getProgress, resetProgress } from "./progression.mjs";
+
+applyCompletionFromSearch(window.location.search);
+if (window.location.search.includes("completed=")) {
+  history.replaceState(null, "", window.location.pathname);
+}
 
 const STAGES = [
   { id:1, title:"Frontline Basics", subtitle:"VOLYA Guard AI · Tower L1", href:"/" , implemented:true },
