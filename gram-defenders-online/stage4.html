@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="description" content="GRAM Defenders Stage 04 Mini-Boss prototype.">
+  <title>GRAM Defenders — Stage 04</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <main class="shell">
+    <header>
+      <div><p class="eyebrow">LAND 01 · STAGE 04 · MINI-BOSS</p><h1>GRAM DEFENDERS</h1></div>
+      <div class="hud">
+        <span id="wave">Wave 0 / 3</span>
+        <span id="energy" class="energy-hud">Energy 90 / 160</span>
+        <span id="hero-hp">VOLYA 500 / 500</span>
+        <span id="core">Core ◆◆◆◆</span>
+      </div>
+    </header>
+
+    <section class="game-wrap">
+      <canvas id="game" width="1200" height="675" aria-label="GRAM Defenders Stage 04 game field"></canvas>
+      <div id="boss-hud" class="boss-hud" hidden>
+        <div class="boss-title"><strong>COREBREAKER</strong><span id="boss-state">ARMORED</span></div>
+        <div class="boss-track"><div id="boss-fill" class="boss-fill"></div></div>
+      </div>
+      <div id="message" class="message">Stage 04 ends with the COREBREAKER elite. Its armor reduces Tower damage while above 50% HP.</div>
+    </section>
+
+    <footer>
+      <div class="battle-actions">
+        <button id="start">Start Wave 1</button>
+        <button id="hero-skill" class="skill-button" disabled>GRAM Pulse</button>
+        <button id="game-speed" class="secondary speed-button" type="button" aria-label="Game speed">Speed 1×</button>
+        <button id="upgrade-tower" class="secondary" disabled>Upgrade selected tower · 30⚡</button>
+        <button id="restart" class="secondary">Restart</button>
+        <a class="stage-link" href="/levels.html">Land 01 Map</a>
+      </div>
+
+      <section class="deck" aria-label="Tower loadout">
+        <span class="deck-label">TOWER LOADOUT</span>
+        <button id="tower-card" class="tower-card selected" aria-pressed="true">
+          <span class="tower-icon">◆</span>
+          <span><strong>Pulse Tower · 35⚡</strong><small>L1 → L2 · Upgrade 30⚡ · L3 🔒</small></span>
+        </button>
+        <button id="remove-tower" class="secondary mode-button" aria-pressed="false">Remove · no refund</button>
+        <span id="build-status">Build mode · 90 Energy</span>
+      </section>
+
+      <p>Mini-Boss: 850 HP · +25⚡ reward · Tower damage reduced to 65% while armor is active</p>
+    </footer>
+  </main>
+  <script type="module" src="src/stage4-app.mjs"></script>
+</body>
+</html>
