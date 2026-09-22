@@ -31,3 +31,6 @@ footer p { width:100%; margin:0; color:#90a9bc; font-size:12px; text-align:cente
 
 .stage-link { display:inline-flex; align-items:center; justify-content:center; padding:12px 18px; border-radius:12px; border:1px solid #315476; color:#dff5ff; background:#0b1b2d; text-decoration:none; font-weight:800; }
 .stage-link:hover { border-color:#55dfff; }
+
+.speed-button { min-width:104px; }
+.speed-button.fast { border-color:#55dfff; color:#eaffff; box-shadow:0 0 0 2px #55dfff22 inset; }
