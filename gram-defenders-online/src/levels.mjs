@@ -9,7 +9,7 @@ const STAGES = [
   { id:1, title:"Frontline Basics", subtitle:"VOLYA Guard AI · Tower L1", href:"/" , implemented:true },
   { id:2, title:"Tower Upgrade", subtitle:"Unlock Tower Level 2", href:"/stage2.html", implemented:true },
   { id:3, title:"Energy Economy", subtitle:"Build / Upgrade Energy decisions", href:"/stage3.html", implemented:true },
-  { id:4, title:"Mini-Boss", subtitle:"Elite encounter · Next build", href:null, implemented:false },
+  { id:4, title:"Mini-Boss", subtitle:"COREBREAKER elite encounter", href:"/stage4.html", implemented:true },
   { id:5, title:"New Threat", subtitle:"New enemy / tactical rule", href:null, implemented:false },
   { id:6, title:"Combined Pressure", subtitle:"Mixed threat composition", href:null, implemented:false },
   { id:7, title:"Pre-Boss", subtitle:"Elite preparation stage", href:null, implemented:false },
