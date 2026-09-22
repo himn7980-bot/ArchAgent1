@@ -53,7 +53,7 @@ function render(now){
 }
 
 function updateUi(){
-  if(game.status==="won"&&!victoryRecorded){completeStage(3);victoryRecorded=true;}
+  if(game.status==="won"&&!victoryRecorded){completeStage(3);victoryRecorded=true;const mapLink=document.querySelector(".stage-link");if(mapLink){mapLink.href="/levels.html?completed=3";mapLink.textContent="Continue · Stage 04";}}
   if(game.energy!==lastShownEnergy){energyFlashUntil=performance.now()+450;lastShownEnergy=game.energy;}
   energyLabel.textContent=`Energy ${game.energy} / ${CONFIG.maxEnergy}`;
   energyLabel.classList.toggle("energy-flash",performance.now()<energyFlashUntil);
