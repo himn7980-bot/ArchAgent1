@@ -1,9 +1,9 @@
 import { MAP, distance, samplePath } from "./map.mjs";
 
 export const ENEMY_TYPES = Object.freeze({
-  scout: Object.freeze({ id: "scout", label: "Scout", health: 85, speed: 0.026, damage: 9, attackCooldown: 1.1, engageRange: 1.05 }),
-  raider: Object.freeze({ id: "raider", label: "Raider", health: 125, speed: 0.022, damage: 13, attackCooldown: 1.0, engageRange: 1.08 }),
-  brute: Object.freeze({ id: "brute", label: "Brute", health: 185, speed: 0.017, damage: 20, attackCooldown: 1.25, engageRange: 1.12 })
+  scout: Object.freeze({ id: "scout", label: "Scout", health: 85, speed: 0.026, damage: 9, attackCooldown: 1.1, interceptRange: 1.55 }),
+  raider: Object.freeze({ id: "raider", label: "Raider", health: 125, speed: 0.022, damage: 13, attackCooldown: 1.0, interceptRange: 1.60 }),
+  brute: Object.freeze({ id: "brute", label: "Brute", health: 185, speed: 0.017, damage: 20, attackCooldown: 1.25, interceptRange: 1.70 })
 });
 
 function group(type, count, interval, gapAfter = 0) {
@@ -35,6 +35,7 @@ export const CONFIG = Object.freeze({
   heroRange: 1.18,
   heroCooldown: 0.72,
   heroMoveSpeed: 4.2,
+  heroGuardRadius: 3.6,
   heroRespawnDelay: 6,
   heroSkillDamage: 100,
   heroSkillRadius: 2.6,
@@ -58,7 +59,16 @@ function buildSpawnQueue(waveGroups) {
   return queue;
 }
 
+function clampBattlefieldPoint(point) {
+  const margin = 0.8;
+  return {
+    x: Math.max(-MAP.width / 2 + margin, Math.min(MAP.width / 2 - margin, point.x)),
+    z: Math.max(-MAP.depth / 2 + margin, Math.min(MAP.depth / 2 - margin, point.z))
+  };
+}
+
 export function createGame() {
+  const start = { x: -7.2, z: 3.8 };
   return {
     status: "ready",
     coreHealth: CONFIG.coreHealth,
@@ -68,8 +78,11 @@ export function createGame() {
     spawnTimer: 0,
     nextEnemyId: 1,
     hero: {
-      position: { x: -7.2, z: 3.8 },
-      destination: null,
+      position: { ...start },
+      anchor: { ...start },
+      manualDestination: null,
+      targetId: null,
+      state: "guard",
       health: CONFIG.heroMaxHealth,
       cooldown: 0,
       skillCooldown: 0,
@@ -109,16 +122,16 @@ export function startWave(game) {
 export function moveHero(game, point) {
   if (game.status === "won" || game.status === "lost" || game.hero.downTimer > 0) return false;
   if (!point || !Number.isFinite(point.x) || !Number.isFinite(point.z)) return false;
-  const margin = 0.8;
-  game.hero.destination = {
-    x: Math.max(-MAP.width / 2 + margin, Math.min(MAP.width / 2 - margin, point.x)),
-    z: Math.max(-MAP.depth / 2 + margin, Math.min(MAP.depth / 2 - margin, point.z))
-  };
+  const destination = clampBattlefieldPoint(point);
+  game.hero.anchor = { ...destination };
+  game.hero.manualDestination = { ...destination };
+  game.hero.targetId = null;
+  game.hero.state = "relocating";
   return true;
 }
 
 export function useHeroSkill(game) {
-  if (game.status !== "playing" || game.hero.destination || game.hero.downTimer > 0 || game.hero.skillCooldown > 0) return false;
+  if (game.status !== "playing" || game.hero.state === "relocating" || game.hero.downTimer > 0 || game.hero.skillCooldown > 0) return false;
   const targets = game.enemies.filter((enemy) => distance(enemy.position, game.hero.position) <= CONFIG.heroSkillRadius);
   if (!targets.length) return false;
   for (const target of targets) target.health -= CONFIG.heroSkillDamage;
@@ -155,19 +168,71 @@ function attackEnemy(attacker, enemies, origin, range, damage, cooldown, dt) {
   return target;
 }
 
-function updateHeroMovement(hero, dt) {
-  if (!hero.destination || hero.downTimer > 0) return;
-  const dx = hero.destination.x - hero.position.x;
-  const dz = hero.destination.z - hero.position.z;
+function moveToward(position, target, speed, dt) {
+  const dx = target.x - position.x;
+  const dz = target.z - position.z;
   const remaining = Math.hypot(dx, dz);
   if (remaining < 0.03) {
-    hero.position = { ...hero.destination };
-    hero.destination = null;
+    position.x = target.x;
+    position.z = target.z;
+    return true;
+  }
+  const travel = Math.min(remaining, speed * dt);
+  position.x += dx / remaining * travel;
+  position.z += dz / remaining * travel;
+  return travel >= remaining - 1e-6;
+}
+
+function findHeroTarget(game) {
+  return game.enemies
+    .filter((enemy) => enemy.health > 0 && distance(enemy.position, game.hero.anchor) <= CONFIG.heroGuardRadius)
+    .sort((a, b) => b.progress - a.progress)[0] || null;
+}
+
+function updateHeroAI(game, dt) {
+  const hero = game.hero;
+  if (hero.downTimer > 0) return;
+
+  if (hero.manualDestination) {
+    const arrived = moveToward(hero.position, hero.manualDestination, CONFIG.heroMoveSpeed, dt);
+    hero.state = "relocating";
+    hero.targetId = null;
+    if (arrived) {
+      hero.manualDestination = null;
+      hero.state = "guard";
+    }
     return;
   }
-  const travel = Math.min(remaining, CONFIG.heroMoveSpeed * dt);
-  hero.position.x += dx / remaining * travel;
-  hero.position.z += dz / remaining * travel;
+
+  let target = game.enemies.find((enemy) => enemy.id === hero.targetId && enemy.health > 0) || null;
+  if (target && distance(target.position, hero.anchor) > CONFIG.heroGuardRadius + 0.25) {
+    target = null;
+    hero.targetId = null;
+  }
+
+  if (!target) {
+    target = findHeroTarget(game);
+    hero.targetId = target?.id ?? null;
+  }
+
+  if (target) {
+    const meleeDistance = Math.min(CONFIG.heroRange, ENEMY_TYPES[target.type].interceptRange);
+    if (distance(hero.position, target.position) > meleeDistance) {
+      moveToward(hero.position, target.position, CONFIG.heroMoveSpeed, dt);
+      hero.state = "chasing";
+    } else {
+      hero.state = "fighting";
+    }
+    return;
+  }
+
+  if (distance(hero.position, hero.anchor) > 0.06) {
+    moveToward(hero.position, hero.anchor, CONFIG.heroMoveSpeed, dt);
+    hero.state = "returning";
+  } else {
+    hero.position = { ...hero.anchor };
+    hero.state = "guard";
+  }
 }
 
 function updateRespawn(game, dt) {
@@ -175,16 +240,21 @@ function updateRespawn(game, dt) {
   game.hero.downTimer = Math.max(0, game.hero.downTimer - dt);
   if (game.hero.downTimer === 0) {
     game.hero.health = CONFIG.heroMaxHealth;
-    game.hero.position = { x: -7.2, z: 3.8 };
-    game.hero.destination = null;
+    game.hero.position = { ...game.hero.anchor };
+    game.hero.manualDestination = null;
+    game.hero.targetId = null;
+    game.hero.state = "guard";
   }
 }
 
 export function updateGame(game, dt) {
   const step = Math.max(0, Math.min(dt, 0.1));
   if (game.status === "won" || game.status === "lost") return game;
-  updateHeroMovement(game.hero, step);
-  if (game.status !== "playing") return game;
+
+  if (game.status !== "playing") {
+    if (game.hero.downTimer <= 0) updateHeroAI(game, step);
+    return game;
+  }
 
   game.hero.skillCooldown = Math.max(0, game.hero.skillCooldown - step);
   updateRespawn(game, step);
@@ -197,13 +267,17 @@ export function updateGame(game, dt) {
   }
 
   const heroActive = game.hero.downTimer <= 0 && game.hero.health > 0;
+  if (heroActive) updateHeroAI(game, step);
+
   for (const enemy of game.enemies) {
     const type = ENEMY_TYPES[enemy.type];
     enemy.attackCooldown = Math.max(0, enemy.attackCooldown - step);
-    const closeToHero = heroActive && distance(enemy.position, game.hero.position) <= type.engageRange;
-    enemy.engaged = closeToHero;
 
-    if (closeToHero) {
+    const isLockedTarget = heroActive && game.hero.targetId === enemy.id && game.hero.state !== "relocating";
+    const inMelee = isLockedTarget && distance(enemy.position, game.hero.position) <= type.interceptRange;
+    enemy.engaged = inMelee;
+
+    if (inMelee) {
       if (enemy.attackCooldown <= 0) {
         game.hero.health -= type.damage;
         enemy.attackCooldown = type.attackCooldown;
@@ -214,8 +288,13 @@ export function updateGame(game, dt) {
     }
   }
 
-  if (heroActive && !game.hero.destination) {
-    attackEnemy(game.hero, game.enemies, game.hero.position, CONFIG.heroRange, CONFIG.heroDamage, CONFIG.heroCooldown, step);
+  if (heroActive && game.hero.targetId && game.hero.state !== "relocating") {
+    const target = game.enemies.find((enemy) => enemy.id === game.hero.targetId && enemy.health > 0);
+    game.hero.cooldown = Math.max(0, game.hero.cooldown - step);
+    if (target && distance(target.position, game.hero.position) <= CONFIG.heroRange && game.hero.cooldown <= 0) {
+      target.health -= CONFIG.heroDamage;
+      game.hero.cooldown = CONFIG.heroCooldown;
+    }
   } else {
     game.hero.cooldown = Math.max(0, game.hero.cooldown - step);
   }
@@ -225,6 +304,7 @@ export function updateGame(game, dt) {
     attackEnemy(tower, game.enemies, towerPosition, CONFIG.towerRange, CONFIG.towerDamage, CONFIG.towerCooldown, step);
   }
 
+  const deadTarget = game.hero.targetId && game.enemies.some((enemy) => enemy.id === game.hero.targetId && enemy.health <= 0);
   game.enemies = game.enemies.filter((enemy) => {
     if (enemy.health <= 0) return false;
     if (enemy.progress >= 1) {
@@ -233,10 +313,16 @@ export function updateGame(game, dt) {
     }
     return true;
   });
+  if (deadTarget || (game.hero.targetId && !game.enemies.some((enemy) => enemy.id === game.hero.targetId))) {
+    game.hero.targetId = null;
+    if (game.hero.state === "fighting" || game.hero.state === "chasing") game.hero.state = "returning";
+  }
 
   if (game.hero.health <= 0 && game.hero.downTimer <= 0) {
     game.hero.health = 0;
-    game.hero.destination = null;
+    game.hero.manualDestination = null;
+    game.hero.targetId = null;
+    game.hero.state = "down";
     game.hero.downTimer = CONFIG.heroRespawnDelay;
   }
 
