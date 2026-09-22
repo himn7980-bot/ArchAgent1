@@ -13,7 +13,7 @@
       <div><p class="eyebrow">LAND 01 · STAGE 03 · ENERGY ECONOMY</p><h1>GRAM DEFENDERS</h1></div>
       <div class="hud">
         <span id="wave">Wave 0 / 3</span>
-        <span id="energy" class="energy-hud">Energy 100 / 200</span>
+        <span id="energy" class="energy-hud">Energy 90 / 160</span>
         <span id="hero-hp">VOLYA 500 / 500</span>
         <span id="core">Core ◆◆◆◆</span>
       </div>
@@ -21,7 +21,7 @@
 
     <section class="game-wrap">
       <canvas id="game" width="1200" height="675" aria-label="GRAM Defenders Stage 03 game field"></canvas>
-      <div id="message" class="message">You have 100 Energy. Build two towers or build one and save for an upgrade.</div>
+      <div id="message" class="message">You have 90 Energy. Build two towers, or build one and upgrade it.</div>
     </section>
 
     <footer>
@@ -29,22 +29,22 @@
         <button id="start">Start Wave 1</button>
         <button id="hero-skill" class="skill-button" disabled>GRAM Pulse</button>
         <button id="game-speed" class="secondary speed-button" type="button" aria-label="Game speed">Speed 1×</button>
-        <button id="upgrade-tower" class="secondary" disabled>Upgrade selected tower · 35⚡</button>
+        <button id="upgrade-tower" class="secondary" disabled>Upgrade selected tower · 30⚡</button>
         <button id="restart" class="secondary">Restart</button>
-        <a class="stage-link" href="/stage2.html">Stage 02</a>
+        <a class="stage-link" href="/levels.html">Land 01 Map</a>
       </div>
 
       <section class="deck" aria-label="Tower loadout">
         <span class="deck-label">TOWER LOADOUT</span>
         <button id="tower-card" class="tower-card selected" aria-pressed="true">
           <span class="tower-icon">◆</span>
-          <span><strong>Pulse Tower · 40⚡</strong><small>Level 1 → Level 2 · Upgrade 35⚡</small></span>
+          <span><strong>Pulse Tower · 35⚡</strong><small>L1 → L2 · Upgrade 30⚡ · L3 🔒</small></span>
         </button>
         <button id="remove-tower" class="secondary mode-button" aria-pressed="false">Remove · no refund</button>
-        <span id="build-status">Build mode · 100 Energy</span>
+        <span id="build-status">Build mode · 90 Energy</span>
       </section>
 
-      <p>Kill rewards: Scout +4⚡ · Archer +6⚡ · Brute +9⚡ · Wave clear bonus: +20 / +25 / +30⚡</p>
+      <p>Kill rewards: Scout +2⚡ · Archer +3⚡ · Brute +5⚡ · Wave clear bonus: +12 / +15 / +18⚡</p>
     </footer>
   </main>
   <script type="module" src="src/stage3-app.mjs"></script>
