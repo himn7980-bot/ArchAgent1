@@ -81,6 +81,25 @@ function beam(origin, target, color) {
   ctx.globalAlpha = 0.78; ctx.lineWidth = 4; ctx.beginPath(); ctx.moveTo(a.x, a.y - 18); ctx.lineTo(b.x, b.y); ctx.stroke(); ctx.restore();
 }
 
+function drawHeroGuardRadius() {
+  const anchor = iso(game.hero.anchor);
+  ctx.save();
+  ctx.beginPath();
+  ctx.ellipse(anchor.x, anchor.y, CONFIG.heroGuardRadius * 38, CONFIG.heroGuardRadius * 19, 0, 0, Math.PI * 2);
+  ctx.fillStyle = "#47ddff10";
+  ctx.fill();
+  ctx.strokeStyle = "#55e7ff88";
+  ctx.lineWidth = 2;
+  ctx.setLineDash([10, 8]);
+  ctx.stroke();
+  ctx.setLineDash([]);
+  ctx.beginPath();
+  ctx.arc(anchor.x, anchor.y, 7, 0, Math.PI * 2);
+  ctx.fillStyle = "#55e7ff";
+  ctx.fill();
+  ctx.restore();
+}
+
 function drawPulse(now) {
   if (now >= pulseFxUntil) return;
   const p = iso(game.hero.position);
@@ -108,6 +127,7 @@ function render(now) {
   const selectedSlot = MAP.towerSlots.find((slot) => slot.id === selectedSlotId);
   if (selectedSlot && game.towers.some((tower) => tower.slotId === selectedSlotId)) drawTowerRange(selectedSlot);
   MAP.towerSlots.forEach(drawTower);
+  drawHeroGuardRadius();
   for (const enemy of game.enemies) {
     const p = iso(enemy.position);
     const type = ENEMY_TYPES[enemy.type];
@@ -125,12 +145,21 @@ function render(now) {
     const towerTarget = game.enemies.filter((e) => distance(e.position, towerSlot) <= CONFIG.towerRange).sort((a, b) => b.progress - a.progress)[0];
     if (towerTarget && tower.cooldown > CONFIG.towerCooldown * 0.72) beam(towerSlot, towerTarget.position, "#ffc45c");
   }
-  const heroTarget = game.enemies.filter((e) => distance(e.position, game.hero.position) <= CONFIG.heroRange).sort((a, b) => b.progress - a.progress)[0];
+  const heroTarget = game.enemies.find((e) => e.id === game.hero.targetId) || null;
   const hp = iso(game.hero.position); ctx.save(); ctx.shadowColor = game.hero.downTimer > 0 ? "#ff6b7f" : "#44e9ff"; ctx.shadowBlur = 20;
   ctx.beginPath(); ctx.arc(hp.x, hp.y - 11, 19, 0, Math.PI * 2); ctx.fillStyle = game.hero.downTimer > 0 ? "#5f2634" : "#e8f7ff"; ctx.fill(); ctx.shadowBlur = 0;
   ctx.fillStyle = game.hero.downTimer > 0 ? "#3d1821" : "#135bd6"; ctx.fillRect(hp.x - 15, hp.y - 9, 30, 34); ctx.fillStyle = "#fff"; ctx.font = "900 11px system-ui"; ctx.textAlign = "center"; ctx.fillText("V", hp.x, hp.y + 11);
   ctx.fillStyle = "#07111e"; ctx.fillRect(hp.x - 23, hp.y - 42, 46, 6); ctx.fillStyle = "#58f29b"; ctx.fillRect(hp.x - 23, hp.y - 42, 46 * Math.max(0, game.hero.health / CONFIG.heroMaxHealth), 6); ctx.restore();
-  if (!game.hero.destination && heroTarget && game.hero.cooldown > CONFIG.heroCooldown * 0.58) {
+  if (heroTarget) {
+    const target = iso(heroTarget.position);
+    ctx.save();
+    ctx.strokeStyle = game.hero.state === "fighting" ? "#ffffff" : "#55e7ff99";
+    ctx.lineWidth = game.hero.state === "fighting" ? 4 : 2;
+    if (game.hero.state !== "fighting") ctx.setLineDash([7, 6]);
+    ctx.beginPath(); ctx.moveTo(hp.x, hp.y - 8); ctx.lineTo(target.x, target.y); ctx.stroke();
+    ctx.restore();
+  }
+  if (heroTarget && game.hero.state === "fighting" && game.hero.cooldown > CONFIG.heroCooldown * 0.58) {
     const target = iso(heroTarget.position); ctx.save(); ctx.strokeStyle = "#dffaff"; ctx.lineWidth = 5; ctx.lineCap = "round";
     ctx.beginPath(); ctx.moveTo(hp.x + 5, hp.y - 14); ctx.lineTo((hp.x + target.x) / 2, (hp.y + target.y) / 2 - 8); ctx.stroke(); ctx.restore();
   }
@@ -140,13 +169,15 @@ function render(now) {
 function updateUi() {
   waveLabel.textContent = `Wave ${game.wave} / ${WAVES.length}`;
   coreLabel.textContent = `Core ${"◆".repeat(Math.max(0, game.coreHealth))}${"◇".repeat(Math.max(0, CONFIG.coreHealth - game.coreHealth))}`;
-  heroLabel.textContent = game.hero.downTimer > 0 ? `VOLYA respawn ${game.hero.downTimer.toFixed(1)}s` : `VOLYA ${Math.ceil(game.hero.health)} / ${CONFIG.heroMaxHealth}`;
+  heroLabel.textContent = game.hero.downTimer > 0
+    ? `VOLYA respawn ${game.hero.downTimer.toFixed(1)}s`
+    : `VOLYA ${Math.ceil(game.hero.health)} / ${CONFIG.heroMaxHealth} · ${game.hero.state.toUpperCase()}`;
   const clear = !game.spawnQueue.length && !game.enemies.length; startButton.disabled = !clear || game.status === "won" || game.status === "lost";
   startButton.textContent = game.wave >= WAVES.length ? "All Waves Deployed" : `Start Wave ${game.wave + 1}`;
   const cooldown = game.hero.skillCooldown;
-  skillButton.disabled = game.status !== "playing" || Boolean(game.hero.destination) || game.hero.downTimer > 0 || cooldown > 0;
+  skillButton.disabled = game.status !== "playing" || Boolean(game.hero.manualDestination) || game.hero.downTimer > 0 || cooldown > 0;
   skillButton.textContent = cooldown > 0 ? `GRAM Pulse · ${cooldown.toFixed(1)}s` : "GRAM Pulse";
-  message.textContent = game.status === "won" ? "VICTORY — Map 01 secured." : game.status === "lost" ? "DEFEAT — GRAM Core destroyed." : game.status === "between" ? "Wave cleared. Reposition VOLYA anywhere and continue." : game.status === "playing" ? "Place VOLYA in the lane to block and fight enemies." : "Tap anywhere on the battlefield to position VOLYA, then start Wave 1.";
+  message.textContent = game.status === "won" ? "VICTORY — Map 01 secured." : game.status === "lost" ? "DEFEAT — GRAM Core destroyed." : game.status === "between" ? "Wave cleared. Set VOLYA's guard point and continue." : game.status === "playing" ? "VOLYA auto-chases one enemy inside the cyan guard radius; the rest keep moving." : "Tap anywhere to set VOLYA's guard point, then start Wave 1.";
 }
 
 function loop(now) { const dt = (now - last) / 1000; last = now; updateGame(game, dt); render(now); updateUi(); requestAnimationFrame(loop); }
