@@ -1,6 +1,7 @@
 import { BASE_ENEMIES, buildTower, canBuildTower, canUpgradeTower, createGame, distance, getBossState, getElite, getStageConfig, getTowerStats, getUpgradeCost, moveHero, removeTower, startWave, updateGame, upgradeTower, useHeroSkill } from "./late-stage-game.mjs";
 import { makePath } from "./late-stage-config.mjs";
 import { completeStage, isStageUnlocked } from "./progression.mjs";
+import { STAGE_RATING, formatStars, getStageStars } from "./stage-rating.mjs";
 
 const stageId=Number(document.body.dataset.stage);
 if(!isStageUnlocked(stageId)) window.location.replace("/levels.html");
@@ -49,13 +50,13 @@ function render(now){
 
 function updateUi(){
   if(game.status==="won"&&!victoryRecorded){
-    completeStage(stageId);victoryRecorded=true;
-    if(stageId<8){mapLink.href=`/levels.html?completed=${stageId}`;mapLink.textContent=`Continue · Stage ${stageId+1}`;}
+    completeStage(stageId,game.stars);victoryRecorded=true;
+    if(stageId<8){mapLink.href=`/levels.html?completed=${stageId}&stars=${game.stars}`;mapLink.textContent=`Continue · Stage ${stageId+1}`;}
     else mapLink.textContent="Land 01 Complete";
   }
   if(game.energy!==lastShownEnergy){energyFlashUntil=performance.now()+450;lastShownEnergy=game.energy;}
   energyLabel.textContent=`Energy ${game.energy} / ${cfg.maxEnergy}`;energyLabel.classList.toggle("energy-flash",performance.now()<energyFlashUntil);
-  waveLabel.textContent=`Wave ${game.wave} / ${cfg.waves.length}`;coreLabel.textContent=`Core ${"◆".repeat(Math.max(0,game.coreHealth))}${"◇".repeat(Math.max(0,4-game.coreHealth))}`;
+  waveLabel.textContent=`Wave ${game.wave} / ${cfg.waves.length}`;coreLabel.textContent=`Leaks ${game.leaks}/${STAGE_RATING.maxLeaks} · ${formatStars(getStageStars(game.leaks))}`;
   heroLabel.textContent=game.hero.downTimer>0?`VOLYA respawn ${game.hero.downTimer.toFixed(1)}s`:`VOLYA ${Math.ceil(game.hero.health)} / 500 · ${game.hero.state.toUpperCase()}`;
 
   const clear=!game.spawnQueue.length&&!game.enemies.length;startButton.disabled=!clear||game.status==="won"||game.status==="lost";startButton.textContent=game.wave>=cfg.waves.length?"All Waves Deployed":`Start Wave ${game.wave+1}`;
@@ -68,8 +69,8 @@ function updateUi(){
   const elite=getElite(game);bossHud.hidden=!elite;
   if(elite){const type=BASE_ENEMIES[elite.type],ratio=Math.max(0,elite.health/elite.maxHealth);bossName.textContent=type.label;bossFill.style.width=`${ratio*100}%`;bossState.textContent=getBossState(elite);}
 
-  if(game.status==="won")message.textContent=stageId===8?"LAND 01 COMPLETE — Main Boss defeated.":`STAGE ${stageId} COMPLETE — Stage ${stageId+1} unlocked.`;
-  else if(game.status==="lost")message.textContent="DEFEAT — GRAM Core destroyed.";
+  if(game.status==="won")message.textContent=stageId===8?`LAND 01 COMPLETE · ${formatStars(game.stars)} · Main Boss defeated.`:`STAGE ${stageId} COMPLETE · ${formatStars(game.stars)} · Stage ${stageId+1} unlocked.`;
+  else if(game.status==="lost")message.textContent="DEFEAT · 10 enemies escaped.";
   else if(game.status==="between"&&game.lastWaveBonus>0)message.textContent=`Wave cleared · +${game.lastWaveBonus} Energy bonus.`;
   else if(elite)message.textContent=elite.type==="coretyrant"?"CORE TYRANT active — break armor, then survive its enrage phase.":"Elite active — move VOLYA to pressure it while Towers provide support.";
   else if(game.status==="playing")message.textContent=cfg.intro;
