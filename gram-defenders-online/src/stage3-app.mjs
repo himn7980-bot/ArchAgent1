@@ -1,5 +1,5 @@
 import { MAP, PATH, distance } from "./stage3-map.mjs";
-import { formatStars, getStageStars } from "./stage-rating.mjs";
+import { formatStars, getStageStars, unlocksNextStage } from "./stage-rating.mjs";
 import { buildTower, canBuildTower, canUpgradeTower, CONFIG, createGame, ENEMY_TYPES, getTowerStats, moveHero, removeTower, startWave, updateGame, upgradeTower, useHeroSkill, WAVES } from "./stage3-game.mjs";
 import { completeStage, isStageUnlocked } from "./progression.mjs";
 if (!isStageUnlocked(3)) window.location.replace("/levels.html");
@@ -54,7 +54,7 @@ function render(now){
 }
 
 function updateUi(){
-  if(game.status==="won"&&!victoryRecorded){completeStage(3,game.stars);victoryRecorded=true;const mapLink=document.querySelector(".stage-link");if(mapLink){mapLink.href=`/levels.html?completed=3&stars=${game.stars}`;mapLink.textContent="Continue · Stage 04";}}
+  if(game.status==="won"&&!victoryRecorded){completeStage(3,game.stars);victoryRecorded=true;const mapLink=document.querySelector(".stage-link");if(mapLink){mapLink.href=`/levels.html?completed=3&stars=${game.stars}`;mapLink.textContent=unlocksNextStage(game.stars)?"Continue · Stage 04":"Land 01 Map · ★★★ required";}}
   if(game.energy!==lastShownEnergy){energyFlashUntil=performance.now()+450;lastShownEnergy=game.energy;}
   energyLabel.textContent=`Energy ${game.energy} / ${CONFIG.maxEnergy}`;
   energyLabel.classList.toggle("energy-flash",performance.now()<energyFlashUntil);
@@ -77,7 +77,7 @@ function updateUi(){
     ? (tower.level>=CONFIG.maxTowerLevel?`${selectedSlotId} MAX LEVEL`:`Upgrade ${selectedSlotId} → L2 · ${CONFIG.towerUpgradeCost}⚡`)
     : `Upgrade selected tower · ${CONFIG.towerUpgradeCost}⚡`;
 
-  if(game.status==="won")message.textContent=`STAGE 03 COMPLETE · ${formatStars(game.stars)} · Stage 04 unlocked.`;
+  if(game.status==="won")message.textContent=unlocksNextStage(game.stars)?`STAGE 03 COMPLETE · ${formatStars(game.stars)} · Stage 04 unlocked.`:`STAGE 03 COMPLETE · ${formatStars(game.stars)} · Get ★★★ to unlock Stage 04.`;
   else if(game.status==="lost")message.textContent="DEFEAT · 10 enemies escaped.";
   else if(game.status==="between"&&game.lastWaveBonus>0)message.textContent=`Wave cleared · +${game.lastWaveBonus} Energy bonus · spend before the next wave.`;
   else if(game.status==="playing")message.textContent="Kills generate Energy. Decide between a new tower and an upgrade.";
