@@ -1,4 +1,5 @@
 import { MAP, PATH, distance } from "./stage4-map.mjs";
+import { formatStars, getStageStars } from "./stage-rating.mjs";
 import { buildTower, canBuildTower, canUpgradeTower, CONFIG, createGame, ENEMY_TYPES, getElite, getTowerStats, moveHero, removeTower, startWave, updateGame, upgradeTower, useHeroSkill, WAVES } from "./stage4-game.mjs";
 import { completeStage, isStageUnlocked } from "./progression.mjs";
 if (!isStageUnlocked(4)) window.location.replace("/levels.html");
@@ -54,13 +55,13 @@ function render(now){
 }
 
 function updateUi(){
-  if(game.status==="won"&&!victoryRecorded){completeStage(4);victoryRecorded=true;const mapLink=document.querySelector(".stage-link");if(mapLink){mapLink.href="/levels.html?completed=4";mapLink.textContent="Continue · Stage 05";}}
+  if(game.status==="won"&&!victoryRecorded){completeStage(4,game.stars);victoryRecorded=true;const mapLink=document.querySelector(".stage-link");if(mapLink){mapLink.href=`/levels.html?completed=4&stars=${game.stars}`;mapLink.textContent="Continue · Stage 05";}}
   if(game.energy!==lastShownEnergy){energyFlashUntil=performance.now()+450;lastShownEnergy=game.energy;}
   energyLabel.textContent=`Energy ${game.energy} / ${CONFIG.maxEnergy}`;
   energyLabel.classList.toggle("energy-flash",performance.now()<energyFlashUntil);
 
   waveLabel.textContent=`Wave ${game.wave} / ${WAVES.length}`;
-  coreLabel.textContent=`Core ${"◆".repeat(Math.max(0,game.coreHealth))}${"◇".repeat(Math.max(0,CONFIG.coreHealth-game.coreHealth))}`;
+  coreLabel.textContent=`Leaks ${game.leaks}/${CONFIG.maxLeaks} · ${formatStars(getStageStars(game.leaks))}`;
   heroLabel.textContent=game.hero.downTimer>0?`VOLYA respawn ${game.hero.downTimer.toFixed(1)}s`:`VOLYA ${Math.ceil(game.hero.health)} / ${CONFIG.heroMaxHealth} · ${game.hero.state.toUpperCase()}`;
 
   const clear=!game.spawnQueue.length&&!game.enemies.length;
@@ -84,8 +85,8 @@ function updateUi(){
     bossFill.style.width=`${ratio*100}%`;
     bossState.textContent=ratio>type.armoredAbove?"ARMORED · TOWER DMG 65%":"ARMOR BROKEN";
   }
-  if(game.status==="won")message.textContent="STAGE 04 COMPLETE — Mini-Boss defeated · Stage 05 unlocked.";
-  else if(game.status==="lost")message.textContent="DEFEAT — GRAM Core destroyed.";
+  if(game.status==="won")message.textContent=`STAGE 04 COMPLETE · ${formatStars(game.stars)} · Stage 05 unlocked.`;
+  else if(game.status==="lost")message.textContent="DEFEAT · 10 enemies escaped.";
   else if(game.status==="between"&&game.lastWaveBonus>0)message.textContent=`Wave cleared · +${game.lastWaveBonus} Energy bonus · spend before the next wave.`;
   else if(game.status==="playing")message.textContent=getElite(game)?"COREBREAKER active — use VOLYA while its armor weakens Tower damage.":"Survive the waves and prepare Energy for the Mini-Boss.";
   else message.textContent=`Stage 04 · Mini-Boss ahead · Start ${CONFIG.startEnergy}⚡ · Build ${CONFIG.towerBuildCost}⚡ · Upgrade ${CONFIG.towerUpgradeCost}⚡.`;
