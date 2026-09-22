@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="description" content="GRAM Defenders Stage 02 combat prototype.">
+  <title>GRAM Defenders — Stage 02</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <main class="shell">
+    <header>
+      <div><p class="eyebrow">LAND 01 · STAGE 02 · TOWER UPGRADE TEST</p><h1>GRAM DEFENDERS</h1></div>
+      <div class="hud"><span id="wave">Wave 0 / 3</span><span id="hero-hp">VOLYA 500 / 500</span><span id="core">Core ◆◆◆◆</span></div>
+    </header>
+    <section class="game-wrap">
+      <canvas id="game" width="1200" height="675" aria-label="GRAM Defenders Stage 02 game field"></canvas>
+      <div id="message" class="message">Build a tower, upgrade it to Level 2, set VOLYA's Guard Point, then start Wave 1.</div>
+    </section>
+    <footer>
+      <div class="battle-actions">
+        <button id="start">Start Wave 1</button>
+        <button id="hero-skill" class="skill-button" disabled>GRAM Pulse</button>
+        <button id="upgrade-tower" class="secondary" disabled>Upgrade selected tower</button>
+        <button id="restart" class="secondary">Restart</button>
+        <a class="stage-link" href="/">Stage 01</a>
+      </div>
+      <section class="deck" aria-label="Tower loadout">
+        <span class="deck-label">TOWER LOADOUT</span>
+        <button id="tower-card" class="tower-card selected" aria-pressed="true">
+          <span class="tower-icon">◆</span><span><strong>Pulse Tower</strong><small>Level 1 → Level 2</small></span>
+        </button>
+        <button id="remove-tower" class="secondary mode-button" aria-pressed="false">Remove</button>
+        <span id="build-status">Build mode · 0/3 towers active</span>
+      </section>
+      <p>Stage 02 introduces tower upgrading · Enemies retain lane offsets and ranged Archers</p>
+    </footer>
+  </main>
+  <script type="module" src="src/stage2-app.mjs"></script>
+</body>
+</html>
