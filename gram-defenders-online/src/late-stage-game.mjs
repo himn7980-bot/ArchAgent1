@@ -1,4 +1,5 @@
 import { BASE_ENEMIES, distance, getStageConfig, getTowerStats, samplePathWithOffset } from "./late-stage-config.mjs";
+import { STAGE_RATING, getStageStars } from "./stage-rating.mjs";
 
 const LANE_OFFSETS=Object.freeze([-1.05,-.55,0,.55,1.05]);
 
@@ -25,7 +26,7 @@ function upgradeCost(cfg,nextLevel){return cfg.upgradeCosts[nextLevel]??Infinity
 
 export function createGame(stageId){
   const cfg=getStageConfig(stageId),start={x:-7,z:3};
-  return {stageId:cfg.id,status:"ready",coreHealth:4,wave:0,enemies:[],spawnQueue:[],spawnTimer:0,nextEnemyId:1,
+  return {stageId:cfg.id,status:"ready",leaks:0,stars:null,wave:0,enemies:[],spawnQueue:[],spawnTimer:0,nextEnemyId:1,
     energy:cfg.startEnergy,lastEnergyGain:0,lastWaveBonus:0,
     hero:{position:{...start},anchor:{...start},manualDestination:null,targetId:null,state:"guard",health:500,cooldown:0,skillCooldown:0,downTimer:0},
     towers:[]};
@@ -192,7 +193,7 @@ export function updateGame(game,dt){
   for(const e of game.enemies)if(e.health<=0)addEnergy(game,BASE_ENEMIES[e.type].energyReward);
   game.enemies=game.enemies.filter(e=>{
     if(e.health<=0)return false;
-    if(e.progress>=1){game.coreHealth-=BASE_ENEMIES[e.type].coreDamage??1;return false;}
+    if(e.progress>=1){game.leaks+=1;return false;}
     return true;
   });
   if(deadTarget||(game.hero.targetId&&!game.enemies.some(e=>e.id===game.hero.targetId))){
@@ -200,10 +201,11 @@ export function updateGame(game,dt){
   }
   if(game.hero.health<=0&&game.hero.downTimer<=0){game.hero.health=0;game.hero.manualDestination=null;game.hero.targetId=null;game.hero.state="down";game.hero.downTimer=15;}
 
-  if(game.coreHealth<=0)game.status="lost";
+  if(game.leaks>=STAGE_RATING.maxLeaks){game.status="lost";game.stars=0;}
   else if(!game.spawnQueue.length&&!game.enemies.length){
     game.lastWaveBonus=addEnergy(game,cfg.waveBonus[game.wave-1]??0);
     game.status=game.wave===cfg.waves.length?"won":"between";
+    if(game.status==="won")game.stars=getStageStars(game.leaks);
   }
   return game;
 }
