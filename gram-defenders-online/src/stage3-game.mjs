@@ -1,4 +1,5 @@
 import { MAP, distance, samplePathWithOffset } from "./stage3-map.mjs";
+import { STAGE_RATING, getStageStars } from "./stage-rating.mjs";
 
 export const ENEMY_TYPES = Object.freeze({
   scout: Object.freeze({ id:"scout", label:"Scout", combat:"melee", health:95, speed:0.026, damage:10, attackCooldown:1.05, interceptRange:1.55, energyReward:2 }),
@@ -21,6 +22,7 @@ export const WAVES = Object.freeze([
 ]);
 
 export const CONFIG = Object.freeze({
+  maxLeaks: STAGE_RATING.maxLeaks,
   coreHealth:4,
   heroMaxHealth:500, heroDamage:48, heroRange:1.18, heroCooldown:0.72,
   heroMoveSpeed:4.2, heroGuardRadius:3.6, heroRespawnDelay:15,
@@ -62,7 +64,7 @@ function clampPoint(point){
 export function createGame(){
   const start={x:-7.0,z:3.2};
   return {
-    status:"ready", coreHealth:CONFIG.coreHealth, wave:0, enemies:[], spawnQueue:[], spawnTimer:0, nextEnemyId:1,
+    status:"ready", leaks: 0, stars: null, wave:0, enemies:[], spawnQueue:[], spawnTimer:0, nextEnemyId:1,
     energy:CONFIG.startEnergy, lastEnergyGain:0, lastWaveBonus:0,
     hero:{position:{...start},anchor:{...start},manualDestination:null,targetId:null,state:"guard",health:CONFIG.heroMaxHealth,cooldown:0,skillCooldown:0,downTimer:0},
     towers:[]
@@ -278,7 +280,7 @@ export function updateGame(game,dt){
   }
   game.enemies=game.enemies.filter(e=>{
     if(e.health<=0)return false;
-    if(e.progress>=1){game.coreHealth-=1;return false;}
+    if(e.progress>=1){game.leaks += 1;return false;}
     return true;
   });
 
@@ -295,12 +297,14 @@ export function updateGame(game,dt){
     game.hero.downTimer=CONFIG.heroRespawnDelay;
   }
 
-  if(game.coreHealth<=0){
+  if(game.leaks>=CONFIG.maxLeaks){
     game.status="lost";
+    game.stars=0;
   }else if(!game.spawnQueue.length&&!game.enemies.length){
     const bonus=CONFIG.waveEnergyBonus[game.wave-1]??0;
     game.lastWaveBonus=addEnergy(game,bonus);
-    game.status=game.wave===WAVES.length?"won":"between";
+    game.status = game.wave === WAVES.length ? "won" : "between";
+    if (game.status === "won") game.stars = getStageStars(game.leaks);
   }
   return game;
 }
