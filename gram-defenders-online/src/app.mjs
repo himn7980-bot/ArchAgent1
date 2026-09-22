@@ -2,6 +2,8 @@ import { MAP, PATH, distance } from "./map.mjs";
 import { formatStars, getStageStars } from "./stage-rating.mjs";
 import { buildTower, CONFIG, createGame, ENEMY_TYPES, moveHero, removeTower, startWave, updateGame, useHeroSkill, WAVES } from "./game.mjs";
 import { completeStage } from "./progression.mjs";
+import { grantStageReward } from "./meta-progression.mjs";
+import { formatStageReward } from "./reward-ui.mjs";
 
 const canvas = document.querySelector("#game");
 const ctx = canvas.getContext("2d");
@@ -24,6 +26,7 @@ const SPEED_STEPS = [1, 2, 3];
 let speedIndex = 0;
 let gameSpeed = SPEED_STEPS[speedIndex];
 let victoryRecorded = false;
+let lastStageReward = null;
 
 const iso = ({ x, z }) => ({ x: canvas.width / 2 + (x - z) * 27, y: 334 + (x + z) * 13.5 });
 const unIso = (px, py) => {
@@ -69,7 +72,7 @@ function marker(point, label, color, radius = 15) {
 
 function drawTowerRange(slot) {
   const p = iso(slot); ctx.save();
-  ctx.beginPath(); ctx.ellipse(p.x, p.y, CONFIG.towerRange * 38, CONFIG.towerRange * 19, 0, 0, Math.PI * 2);
+  ctx.beginPath(); ctx.ellipse(p.x, p.y, game.battleMeta.tower.range * 38, game.battleMeta.tower.range * 19, 0, 0, Math.PI * 2);
   ctx.fillStyle = "#ffb23f18"; ctx.fill(); ctx.strokeStyle = "#ffc45caa"; ctx.lineWidth = 2; ctx.setLineDash([9, 7]); ctx.stroke(); ctx.restore();
 }
 
@@ -191,6 +194,7 @@ function render(now) {
 function updateUi() {
   if (game.status === "won" && !victoryRecorded) {
     completeStage(1, game.stars);
+    lastStageReward = grantStageReward(1, game.stars).reward;
     victoryRecorded = true;
     const mapLink = document.querySelector(".stage-link");
     if (mapLink) {
@@ -202,13 +206,13 @@ function updateUi() {
   coreLabel.textContent = `Leaks ${game.leaks}/${CONFIG.maxLeaks} · ${formatStars(getStageStars(game.leaks))}`;
   heroLabel.textContent = game.hero.downTimer > 0
     ? `VOLYA respawn ${game.hero.downTimer.toFixed(1)}s`
-    : `VOLYA ${Math.ceil(game.hero.health)} / ${CONFIG.heroMaxHealth} · ${game.hero.state.toUpperCase()}`;
+    : `VOLYA ${Math.ceil(game.hero.health)} / ${game.hero.maxHealth} · ${game.hero.state.toUpperCase()}`;
   const clear = !game.spawnQueue.length && !game.enemies.length; startButton.disabled = !clear || game.status === "won" || game.status === "lost";
   startButton.textContent = game.wave >= WAVES.length ? "All Waves Deployed" : `Start Wave ${game.wave + 1}`;
   const cooldown = game.hero.skillCooldown;
   skillButton.disabled = game.status !== "playing" || Boolean(game.hero.manualDestination) || game.hero.downTimer > 0 || cooldown > 0;
   skillButton.textContent = cooldown > 0 ? `GRAM Pulse · ${cooldown.toFixed(1)}s` : "GRAM Pulse";
-  message.textContent = game.status === "won" ? `VICTORY · ${formatStars(game.stars)} · Stage 02 unlocked.` : game.status === "lost" ? "DEFEAT · 10 enemies escaped." : game.status === "between" ? "Wave cleared. Set VOLYA's guard point and continue." : game.status === "playing" ? "Enemies use lane offsets. Archers can stop and fire from outside VOLYA's guard radius." : "Tap anywhere to set VOLYA's guard point, then start Wave 1.";
+  message.textContent = game.status === "won" ? `VICTORY · ${formatStars(game.stars)} · ${formatStageReward(lastStageReward)} · Stage 02 unlocked.` : game.status === "lost" ? "DEFEAT · 10 enemies escaped." : game.status === "between" ? "Wave cleared. Set VOLYA's guard point and continue." : game.status === "playing" ? "Enemies use lane offsets. Archers can stop and fire from outside VOLYA's guard radius." : "Tap anywhere to set VOLYA's guard point, then start Wave 1.";
 }
 
 function advanceSimulation(realDt) {
@@ -270,4 +274,4 @@ speedButton.addEventListener("click", () => {
 });
 towerCard.addEventListener("click", () => setTowerMode("build"));
 removeButton.addEventListener("click", () => setTowerMode("remove"));
-document.querySelector("#restart").addEventListener("click", () => { game = createGame(); selectedSlotId = null; pulseFxUntil = 0; victoryRecorded = false; setTowerMode("build"); last = performance.now(); });
+document.querySelector("#restart").addEventListener("click", () => { game = createGame(); selectedSlotId = null; pulseFxUntil = 0; victoryRecorded = false; lastStageReward = null; setTowerMode("build"); last = performance.now(); });
