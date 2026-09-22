@@ -1,14 +1,21 @@
-const STORAGE_KEY = "gram_defenders_progress_v4";
-const COOKIE_KEY = "gram_defenders_progress_v4";
+const STORAGE_KEY = "gram_defenders_progress_v5";
+const COOKIE_KEY = "gram_defenders_progress_v5";
 const MAX_STAGE = 8;
-const REQUIRED_UNLOCK_STARS = 3;
+
+export const LAND_RULES = Object.freeze({
+  landId: 1,
+  stageCount: 8,
+  maxStars: 24,
+  nextLandStarRequirement: 20,
+  mainBossStage: 8
+});
 
 function clampStars(value) {
   const stars = Math.floor(Number(value) || 0);
   return Math.max(0, Math.min(3, stars));
 }
 
-function sequentialPerfectClears(completedStages) {
+function sequentialClears(completedStages) {
   const unique = [...new Set((completedStages || []).filter((n) => Number.isInteger(n) && n >= 1 && n <= MAX_STAGE))].sort((a, b) => a - b);
   let sequential = 0;
   for (let stage = 1; stage <= MAX_STAGE; stage += 1) {
@@ -19,26 +26,28 @@ function sequentialPerfectClears(completedStages) {
 }
 
 function normalizeProgress(value) {
-  const completedStages = sequentialPerfectClears(value?.completedStages);
+  const completedStages = sequentialClears(value?.completedStages);
   const unlockedStage = Math.max(1, Math.min(MAX_STAGE, completedStages.length + 1));
   const rawStars = value?.bestStars && typeof value.bestStars === "object" ? value.bestStars : {};
   const bestStars = {};
 
-  for (let stage = 1; stage <= unlockedStage; stage += 1) {
+  for (let stage = 1; stage <= MAX_STAGE; stage += 1) {
     const stars = clampStars(rawStars[stage] ?? rawStars[String(stage)] ?? 0);
     if (stars > 0) bestStars[stage] = stars;
   }
 
-  // A stage recorded as a perfect clear must always retain three stars.
-  for (const stage of completedStages) bestStars[stage] = REQUIRED_UNLOCK_STARS;
+  // Every recorded clear must have earned at least one star.
+  for (const stage of completedStages) {
+    if (!bestStars[stage]) bestStars[stage] = 1;
+  }
 
   return { unlockedStage, completedStages, bestStars };
 }
 
-function readCookie(key = COOKIE_KEY) {
+function readCookie() {
   if (typeof document === "undefined") return null;
   try {
-    const prefix = key + "=";
+    const prefix = COOKIE_KEY + "=";
     const raw = document.cookie.split(";").map((part) => part.trim()).find((part) => part.startsWith(prefix));
     if (!raw) return null;
     return JSON.parse(decodeURIComponent(raw.slice(prefix.length)));
@@ -58,40 +67,33 @@ function readStorage(key) {
 
 function migrateLegacy(source) {
   if (!source) return null;
-  const completedStages = sequentialPerfectClears(source.completedStages);
-  const bestStars = { ...(source.bestStars || {}) };
-
-  // Before v1.13, any successful clear unlocked the next stage.
-  // Grandfather those already-unlocked clears as 3-star so existing players are not relocked.
-  for (const stage of completedStages) bestStars[stage] = REQUIRED_UNLOCK_STARS;
-
-  return { completedStages, bestStars };
+  return {
+    completedStages: source.completedStages || [],
+    bestStars: source.bestStars || {}
+  };
 }
 
 function mergeProgress(...sources) {
   const completedStages = [];
   const bestStars = {};
-
   for (const source of sources.filter(Boolean)) {
     for (const stage of source.completedStages || []) completedStages.push(stage);
     for (const [stage, value] of Object.entries(source.bestStars || {})) {
       bestStars[stage] = Math.max(bestStars[stage] || 0, clampStars(value));
     }
   }
-
   return normalizeProgress({ completedStages, bestStars });
 }
 
 function safeRead() {
-  const currentLocal = readStorage(STORAGE_KEY);
-  const currentCookie = readCookie();
-  const legacy = [
+  return mergeProgress(
+    readStorage(STORAGE_KEY),
+    readCookie(),
+    migrateLegacy(readStorage("gram_defenders_progress_v4")),
     migrateLegacy(readStorage("gram_defenders_progress_v3")),
     migrateLegacy(readStorage("gram_defenders_progress_v2")),
     migrateLegacy(readStorage("gram_defenders_progress_v1"))
-  ];
-
-  return mergeProgress(currentLocal, currentCookie, ...legacy);
+  );
 }
 
 function safeWrite(progress) {
@@ -113,10 +115,21 @@ export function getStageBestStars(stage) {
   return safeRead().bestStars[Number(stage)] || 0;
 }
 
+export function getLandStars() {
+  const progress = safeRead();
+  return Object.values(progress.bestStars).reduce((sum, stars) => sum + clampStars(stars), 0);
+}
+
 export function isStageUnlocked(stage) {
   const target = Number(stage);
   if (!Number.isInteger(target) || target < 1 || target > MAX_STAGE) return false;
   return target <= safeRead().unlockedStage;
+}
+
+export function isNextLandUnlocked() {
+  const progress = safeRead();
+  const bossCleared = progress.completedStages.includes(LAND_RULES.mainBossStage);
+  return bossCleared && getLandStars() >= LAND_RULES.nextLandStarRequirement;
 }
 
 export function completeStage(stage, stars = 0) {
@@ -127,15 +140,10 @@ export function completeStage(stage, stars = 0) {
   if (!Number.isInteger(target) || target < 1 || target > MAX_STAGE || earnedStars < 1) return progress;
   if (target > progress.unlockedStage) return progress;
 
-  // Always preserve the best result for an unlocked/replayable stage.
   progress.bestStars[target] = Math.max(progress.bestStars[target] || 0, earnedStars);
 
-  // Replaying a previously perfect-cleared stage can improve nothing beyond 3★,
-  // but it must never disturb sequential progression.
-  if (progress.completedStages.includes(target)) return safeWrite(progress);
-
-  // Only a perfect 3★ clear unlocks the next stage.
-  if (target === progress.unlockedStage && earnedStars === REQUIRED_UNLOCK_STARS) {
+  // Any successful 1–3 star clear advances the sequential stage path.
+  if (!progress.completedStages.includes(target) && target === progress.unlockedStage) {
     progress.completedStages.push(target);
   }
 
@@ -154,9 +162,12 @@ export function applyCompletionFromSearch(search = "") {
 export function resetProgress() {
   const progress = { unlockedStage: 1, completedStages: [], bestStars: {} };
   try {
-    for (const key of ["gram_defenders_progress_v1","gram_defenders_progress_v2","gram_defenders_progress_v3"]) {
-      localStorage.removeItem(key);
-    }
+    for (const key of [
+      "gram_defenders_progress_v1",
+      "gram_defenders_progress_v2",
+      "gram_defenders_progress_v3",
+      "gram_defenders_progress_v4"
+    ]) localStorage.removeItem(key);
   } catch {}
   return safeWrite(progress);
 }
