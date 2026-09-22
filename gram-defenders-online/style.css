@@ -34,3 +34,6 @@ footer p { width:100%; margin:0; color:#90a9bc; font-size:12px; text-align:cente
 
 .speed-button { min-width:104px; }
 .speed-button.fast { border-color:#55dfff; color:#eaffff; box-shadow:0 0 0 2px #55dfff22 inset; }
+
+.energy-hud { border-color:#9adf65 !important; color:#eaffdc; }
+.energy-flash { box-shadow:0 0 0 2px #9adf6533 inset,0 0 18px #9adf6533; }
