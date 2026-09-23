@@ -1,4 +1,4 @@
-const STORAGE_KEY="gram_defenders_meta_v2";
+const STORAGE_KEY="gram_defenders_meta_v3";
 
 export const HERO_BLUEPRINTS=Object.freeze({
   VOLYA:Object.freeze({
@@ -6,7 +6,7 @@ export const HERO_BLUEPRINTS=Object.freeze({
     baseStats:Object.freeze({hp:500,attack:48,defense:10,attackSpeed:1.0,critChance:5,critDamage:150})
   }),
   GRAMCAT:Object.freeze({
-    id:"GRAMCAT",name:"Gramcat",role:"Ranged DPS",unlocked:false,
+    id:"GRAMCAT",name:"Gramcat",role:"Ranged DPS",unlocked:true,
     baseStats:Object.freeze({hp:320,attack:62,defense:5,attackSpeed:1.25,critChance:8,critDamage:160})
   }),
   VIRUS:Object.freeze({
@@ -17,7 +17,7 @@ export const HERO_BLUEPRINTS=Object.freeze({
 
 export const TOWER_BLUEPRINTS=Object.freeze({
   PULSE:Object.freeze({id:"PULSE",name:"Pulse Tower",role:"Fast single target",unlocked:true,baseStats:Object.freeze({damage:15,range:4.6,cooldown:.78})}),
-  ENERGY:Object.freeze({id:"ENERGY",name:"Energy Tower",role:"Special / Energy",unlocked:false,baseStats:Object.freeze({damage:26,range:4.8,cooldown:1.05})}),
+  ENERGY:Object.freeze({id:"ENERGY",name:"Energy Tower",role:"Armor pierce / Shield breaker",unlocked:true,baseStats:Object.freeze({damage:26,range:4.8,cooldown:1.05})}),
   BOMB:Object.freeze({id:"BOMB",name:"Bomb Tower",role:"Slow high AoE",unlocked:false,baseStats:Object.freeze({damage:58,range:4.9,cooldown:1.65})}),
   CONTROL:Object.freeze({id:"CONTROL",name:"Control Tower",role:"Slow / Crowd control",unlocked:false,baseStats:Object.freeze({damage:10,range:5.0,cooldown:1.0})})
 });
@@ -44,16 +44,16 @@ export const STAGE_REWARD_RULES=Object.freeze({
 function defaultState(){
   return {
     wallet:{coins:1500,gems:50,materials:30},
-    heroSquad:["VOLYA",null,null],
-    towerDeck:["PULSE",null,null,null],
+    heroSquad:["VOLYA","GRAMCAT",null],
+    towerDeck:["PULSE","ENERGY",null,null],
     heroes:{
       VOLYA:{unlocked:true,level:1,rank:1},
-      GRAMCAT:{unlocked:false,level:1,rank:1},
+      GRAMCAT:{unlocked:true,level:1,rank:1},
       VIRUS:{unlocked:false,level:1,rank:1}
     },
     towers:{
       PULSE:{unlocked:true,level:1},
-      ENERGY:{unlocked:false,level:1},
+      ENERGY:{unlocked:true,level:1},
       BOMB:{unlocked:false,level:1},
       CONTROL:{unlocked:false,level:1}
     },
@@ -78,7 +78,7 @@ function normalize(raw){
   const heroes={};
   for(const id of Object.keys(HERO_BLUEPRINTS)){
     heroes[id]={
-      unlocked:Boolean(value.heroes?.[id]?.unlocked??base.heroes[id].unlocked),
+      unlocked:base.heroes[id].unlocked||Boolean(value.heroes?.[id]?.unlocked),
       level:clampLevel(value.heroes?.[id]?.level??1),
       rank:Math.max(1,Math.floor(Number(value.heroes?.[id]?.rank??1)))
     };
@@ -86,17 +86,17 @@ function normalize(raw){
   const towers={};
   for(const id of Object.keys(TOWER_BLUEPRINTS)){
     towers[id]={
-      unlocked:Boolean(value.towers?.[id]?.unlocked??base.towers[id].unlocked),
+      unlocked:base.towers[id].unlocked||Boolean(value.towers?.[id]?.unlocked),
       level:clampLevel(value.towers?.[id]?.level??1)
     };
   }
   const heroSquad=Array.from({length:META_RULES.heroSquadSize},(_,i)=>{
-    const id=value.heroSquad?.[i];
-    return heroes[id]?.unlocked?id:(i===0?"VOLYA":null);
+    const id=value.heroSquad?.[i]??base.heroSquad[i];
+    return heroes[id]?.unlocked?id:(base.heroSquad[i]||null);
   });
   const towerDeck=Array.from({length:META_RULES.towerDeckSize},(_,i)=>{
-    const id=value.towerDeck?.[i];
-    return towers[id]?.unlocked?id:(i===0?"PULSE":null);
+    const id=value.towerDeck?.[i]??base.towerDeck[i];
+    return towers[id]?.unlocked?id:(base.towerDeck[i]||null);
   });
   const rewardClaims={};
   for(const [stageId,claim] of Object.entries(value.rewardClaims||{})){
@@ -110,7 +110,7 @@ function normalize(raw){
   return {wallet,heroSquad,towerDeck,heroes,towers,rewardClaims};
 }
 function readLegacy(){
-  for(const key of ["gram_defenders_meta_v1"]){
+  for(const key of ["gram_defenders_meta_v2","gram_defenders_meta_v1"]){
     try{
       const raw=localStorage.getItem(key);
       if(raw)return JSON.parse(raw);
@@ -138,6 +138,7 @@ export function resetMeta(){
   try{
     localStorage.removeItem(STORAGE_KEY);
     localStorage.removeItem("gram_defenders_meta_v1");
+    localStorage.removeItem("gram_defenders_meta_v2");
   }catch{}
   return write(state);
 }
@@ -205,14 +206,20 @@ export function getPowerScore(){
 export function equipHero(id,slot){
   const state=read(),index=Number(slot);
   if(!state.heroes[id]?.unlocked||!Number.isInteger(index)||index<0||index>=META_RULES.heroSquadSize)return state;
-  state.heroSquad=state.heroSquad.map(x=>x===id?null:x);
+  const previousIndex=state.heroSquad.indexOf(id);
+  const displaced=state.heroSquad[index]||null;
+  if(previousIndex===index)return state;
+  if(previousIndex>=0)state.heroSquad[previousIndex]=displaced;
   state.heroSquad[index]=id;
   return write(state);
 }
 export function equipTower(id,slot){
   const state=read(),index=Number(slot);
   if(!state.towers[id]?.unlocked||!Number.isInteger(index)||index<0||index>=META_RULES.towerDeckSize)return state;
-  state.towerDeck=state.towerDeck.map(x=>x===id?null:x);
+  const previousIndex=state.towerDeck.indexOf(id);
+  const displaced=state.towerDeck[index]||null;
+  if(previousIndex===index)return state;
+  if(previousIndex>=0)state.towerDeck[previousIndex]=displaced;
   state.towerDeck[index]=id;
   return write(state);
 }
