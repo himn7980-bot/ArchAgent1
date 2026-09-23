@@ -4,6 +4,7 @@ import { buildTower, canBuildTower, canUpgradeTower, CONFIG, createGame, ENEMY_T
 import { completeStage, isStageUnlocked } from "./progression.mjs";
 import { grantStageReward } from "./meta-progression.mjs";
 import { formatStageReward } from "./reward-ui.mjs";
+import { installTowerDeckUi } from "./battle-deck-ui.mjs";
 if (!isStageUnlocked(3)) window.location.replace("/levels.html");
 
 const canvas=document.querySelector("#game"),ctx=canvas.getContext("2d");
@@ -20,10 +21,10 @@ function pathStroke(points,color,width,smooth=false){const p=points.map(iso);ctx
 function polygon(points,fill,stroke,width=2){ctx.beginPath();points.forEach((p,i)=>i?ctx.lineTo(p.x,p.y):ctx.moveTo(p.x,p.y));ctx.closePath();ctx.fillStyle=fill;ctx.fill();ctx.strokeStyle=stroke;ctx.lineWidth=width;ctx.stroke();}
 function terrain(){const c=[{x:-15,z:-9},{x:15,z:-9},{x:15,z:9},{x:-15,z:9}].map(iso);polygon(c.map(p=>({x:p.x,y:p.y+24})),"#06111d","#102c42");polygon(c,"#102638","#35627f",3);}
 function marker(point,label,color,r=15){const p=iso(point);ctx.save();ctx.shadowColor=color;ctx.shadowBlur=12;ctx.beginPath();ctx.arc(p.x,p.y,r,0,Math.PI*2);ctx.fillStyle=color;ctx.fill();ctx.shadowBlur=0;ctx.strokeStyle="#dffaff";ctx.lineWidth=2;ctx.stroke();ctx.fillStyle="#04101b";ctx.font="800 12px system-ui";ctx.textAlign="center";ctx.textBaseline="middle";ctx.fillText(label,p.x,p.y);ctx.restore();}
-function drawTowerRange(slot,level){const p=iso(slot),stats=getTowerStats(level,game);ctx.save();ctx.beginPath();ctx.ellipse(p.x,p.y,stats.range*38,stats.range*19,0,0,Math.PI*2);ctx.fillStyle="#ffb23f18";ctx.fill();ctx.strokeStyle="#ffc45caa";ctx.lineWidth=2;ctx.setLineDash([9,7]);ctx.stroke();ctx.restore();}
+function drawTowerRange(slot,level,cardId=null){const p=iso(slot),stats=getTowerStats(level,game,cardId||game.selectedTowerCardId);ctx.save();ctx.beginPath();ctx.ellipse(p.x,p.y,stats.range*38,stats.range*19,0,0,Math.PI*2);ctx.fillStyle="#ffb23f18";ctx.fill();ctx.strokeStyle="#ffc45caa";ctx.lineWidth=2;ctx.setLineDash([9,7]);ctx.stroke();ctx.restore();}
 function drawTower(slot){const p=iso(slot),tower=game.towers.find(t=>t.slotId===slot.id);if(!tower)return marker(slot,slot.id,selectedSlotId===slot.id?"#9a6a25":"#6f5830",14);ctx.save();ctx.shadowColor=tower.level===2?"#fff0a3":"#ffb23f";ctx.shadowBlur=tower.level===2?28:18;polygon([{x:p.x-20,y:p.y+11},{x:p.x,y:p.y+22},{x:p.x+20,y:p.y+11},{x:p.x,y:p.y}],tower.level===2?"#d89618":"#a65d16","#ffd388");ctx.fillStyle=tower.level===2?"#ffe083":"#ffb23f";ctx.fillRect(p.x-9,p.y-27,18,34);ctx.beginPath();ctx.arc(p.x,p.y-29,tower.level===2?16:13,0,Math.PI*2);ctx.fill();ctx.shadowBlur=0;ctx.fillStyle="#112131";ctx.font="900 11px system-ui";ctx.textAlign="center";ctx.fillText(`${slot.id} L${tower.level}`,p.x,p.y+14);ctx.restore();}
 function beam(origin,target,color){const a=iso(origin),b=iso(target);ctx.save();ctx.strokeStyle=color;ctx.shadowColor=color;ctx.shadowBlur=14;ctx.globalAlpha=.78;ctx.lineWidth=4;ctx.beginPath();ctx.moveTo(a.x,a.y-18);ctx.lineTo(b.x,b.y);ctx.stroke();ctx.restore();}
-function drawGuard(){const a=iso(game.hero.anchor);ctx.save();ctx.beginPath();ctx.ellipse(a.x,a.y,CONFIG.heroGuardRadius*38,CONFIG.heroGuardRadius*19,0,0,Math.PI*2);ctx.fillStyle="#47ddff10";ctx.fill();ctx.strokeStyle="#55e7ff88";ctx.lineWidth=2;ctx.setLineDash([10,8]);ctx.stroke();ctx.restore();}
+function drawGuard(){const a=iso(game.hero.anchor);ctx.save();ctx.beginPath();ctx.ellipse(a.x,a.y,game.battleMeta.hero.guardRadius*38,game.battleMeta.hero.guardRadius*19,0,0,Math.PI*2);ctx.fillStyle="#47ddff10";ctx.fill();ctx.strokeStyle="#55e7ff88";ctx.lineWidth=2;ctx.setLineDash([10,8]);ctx.stroke();ctx.restore();}
 function drawPulse(now){if(now>=pulseFxUntil)return;const p=iso(game.hero.position),k=1-(pulseFxUntil-now)/450,r=28+k*110;ctx.save();ctx.globalAlpha=Math.max(0,.8-k*.8);ctx.strokeStyle="#63efff";ctx.shadowColor="#2ddcff";ctx.shadowBlur=28;ctx.lineWidth=7-k*4;ctx.beginPath();ctx.ellipse(p.x,p.y,r,r*.5,0,0,Math.PI*2);ctx.stroke();ctx.restore();}
 
 function render(now){
@@ -32,7 +33,7 @@ function render(now){
   terrain();pathStroke(PATH,"#20384d",112,true);pathStroke(PATH,"#587993",94,true);pathStroke(PATH,"#88a8bd",4,true);
   marker(MAP.spawn,"SP","#ff5d78",20);marker(MAP.core,"G","#8f6dff",27);
   const selected=MAP.towerSlots.find(s=>s.id===selectedSlotId),selectedTower=game.towers.find(t=>t.slotId===selectedSlotId);
-  if(selected&&selectedTower)drawTowerRange(selected,selectedTower.level);
+  if(selected&&selectedTower)drawTowerRange(selected,selectedTower.level,selectedTower.cardId);
   MAP.towerSlots.forEach(drawTower);drawGuard();
 
   for(const e of game.enemies){
@@ -50,7 +51,7 @@ function render(now){
   }
 
   const heroTarget=game.enemies.find(e=>e.id===game.hero.targetId)||null,hp=iso(game.hero.position);
-  ctx.save();ctx.shadowColor=game.hero.downTimer>0?"#ff6b7f":"#44e9ff";ctx.shadowBlur=20;ctx.beginPath();ctx.arc(hp.x,hp.y-11,19,0,Math.PI*2);ctx.fillStyle=game.hero.downTimer>0?"#5f2634":"#e8f7ff";ctx.fill();ctx.shadowBlur=0;ctx.fillStyle=game.hero.downTimer>0?"#3d1821":"#135bd6";ctx.fillRect(hp.x-15,hp.y-9,30,34);ctx.fillStyle="#fff";ctx.font="900 11px system-ui";ctx.textAlign="center";ctx.fillText("V",hp.x,hp.y+11);ctx.restore();
+  ctx.save();ctx.shadowColor=game.hero.downTimer>0?"#ff6b7f":"#44e9ff";ctx.shadowBlur=20;ctx.beginPath();ctx.arc(hp.x,hp.y-11,19,0,Math.PI*2);ctx.fillStyle=game.hero.downTimer>0?"#5f2634":"#e8f7ff";ctx.fill();ctx.shadowBlur=0;ctx.fillStyle=game.hero.downTimer>0?"#3d1821":"#135bd6";ctx.fillRect(hp.x-15,hp.y-9,30,34);ctx.fillStyle="#fff";ctx.font="900 11px system-ui";ctx.textAlign="center";ctx.fillText(game.battleMeta.heroId==="GRAMCAT"?"G":"V",hp.x,hp.y+11);ctx.restore();
   if(heroTarget&&game.hero.state==="fighting"&&game.hero.cooldown>CONFIG.heroCooldown*.58)beam(game.hero.position,heroTarget.position,"#dffaff");
   drawPulse(now);
 }
@@ -63,7 +64,7 @@ function updateUi(){
 
   waveLabel.textContent=`Wave ${game.wave} / ${WAVES.length}`;
   coreLabel.textContent=`Leaks ${game.leaks}/${CONFIG.maxLeaks} · ${formatStars(getStageStars(game.leaks))}`;
-  heroLabel.textContent=game.hero.downTimer>0?`VOLYA respawn ${game.hero.downTimer.toFixed(1)}s`:`VOLYA ${Math.ceil(game.hero.health)} / ${game.hero.maxHealth} · ${game.hero.state.toUpperCase()}`;
+  heroLabel.textContent=game.hero.downTimer>0?`${game.battleMeta.hero.name} respawn ${game.hero.downTimer.toFixed(1)}s`:`${game.battleMeta.hero.name} ${Math.ceil(game.hero.health)} / ${game.hero.maxHealth} · ${game.hero.state.toUpperCase()}`;
 
   const clear=!game.spawnQueue.length&&!game.enemies.length;
   startButton.disabled=!clear||game.status==="won"||game.status==="lost";
@@ -71,7 +72,7 @@ function updateUi(){
 
   const cd=game.hero.skillCooldown;
   skillButton.disabled=game.status!=="playing"||Boolean(game.hero.manualDestination)||game.hero.downTimer>0||cd>0;
-  skillButton.textContent=cd>0?`GRAM Pulse · ${cd.toFixed(1)}s`:"GRAM Pulse";
+  skillButton.textContent=cd>0?`${game.battleMeta.hero.skillName} · ${cd.toFixed(1)}s`:game.battleMeta.hero.skillName;
 
   const tower=game.towers.find(t=>t.slotId===selectedSlotId);
   upgradeButton.disabled=!tower||tower.level>=CONFIG.maxTowerLevel||!canUpgradeTower(game,selectedSlotId);
@@ -93,8 +94,9 @@ function updateUi(){
 function advanceSimulation(realDt){let remaining=Math.min(realDt*gameSpeed,.5);while(remaining>0){const step=Math.min(.05,remaining);updateGame(game,step);remaining-=step;}}
 function loop(now){const dt=(now-last)/1000;last=now;advanceSimulation(dt);render(now);updateUi();requestAnimationFrame(loop);}requestAnimationFrame(loop);
 
-function setTowerMode(mode){towerMode=mode;towerCard.classList.toggle("selected",mode==="build");towerCard.setAttribute("aria-pressed",String(mode==="build"));removeButton.setAttribute("aria-pressed",String(mode==="remove"));updateUi();}
+function setTowerMode(mode){towerMode=mode;removeButton.setAttribute("aria-pressed",String(mode==="remove"));updateUi();}
 
+const towerDeckUi=installTowerDeckUi(game,towerCard,{buildCost:CONFIG.towerBuildCost,onSelect:(cardId)=>{game.selectedTowerCardId=cardId;setTowerMode("build");}});
 canvas.addEventListener("pointerdown",event=>{
   const rect=canvas.getBoundingClientRect(),x=(event.clientX-rect.left)*canvas.width/rect.width,y=(event.clientY-rect.top)*canvas.height/rect.height;
   let slot=null,best=42;
@@ -127,4 +129,4 @@ upgradeButton.addEventListener("click",()=>{
 });
 towerCard.addEventListener("click",()=>setTowerMode("build"));
 removeButton.addEventListener("click",()=>setTowerMode("remove"));
-document.querySelector("#restart").addEventListener("click",()=>{game=createGame();selectedSlotId=null;pulseFxUntil=0;lastShownEnergy=game.energy;victoryRecorded=false;lastStageReward=null;setTowerMode("build");last=performance.now();});
+document.querySelector("#restart").addEventListener("click",()=>{game=createGame();selectedSlotId=null;pulseFxUntil=0;lastShownEnergy=game.energy;victoryRecorded=false;lastStageReward=null;towerDeckUi.select(game.selectedTowerCardId);setTowerMode("build");last=performance.now();});
