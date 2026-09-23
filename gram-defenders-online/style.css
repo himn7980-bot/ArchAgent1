@@ -94,3 +94,6 @@ footer p { width:100%; margin:0; color:#90a9bc; font-size:12px; text-align:cente
 .meta-note { margin-top:18px; padding:13px 15px; border-radius:12px; border:1px solid #315476; background:#0a1724; display:flex; flex-direction:column; gap:5px; }
 .meta-note span { color:#91aabe; font-size:12px; line-height:1.5; }
 @media (max-width:760px){ .collection-grid{grid-template-columns:1fr}.loadout-slots{grid-template-columns:repeat(2,minmax(0,1fr))}.stats-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.land-gate{align-items:flex-start;flex-direction:column} }
+
+.tower-card[data-tower-card-id="ENERGY"] { border-color:#4ccde6; }
+.tower-card[data-tower-card-id="ENERGY"].selected { box-shadow:0 0 0 1px #6ee9ff inset,0 0 22px #43d9ff33; }
