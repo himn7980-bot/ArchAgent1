@@ -1,6 +1,6 @@
 import { MAP, distance, samplePathWithOffset } from "./stage4-map.mjs";
 import { STAGE_RATING, getStageStars } from "./stage-rating.mjs";
-import { applyHeroDefense, createBattleMeta, getEffectiveTowerStats, getHeroAttackDamage } from "./battle-meta.mjs";
+import { applyHeroDefense, createBattleMeta, getEffectiveTowerStats, getHeroAttackDamage, getTowerSpecial } from "./battle-meta.mjs";
 
 export const ENEMY_TYPES=Object.freeze({
   scout:Object.freeze({id:"scout",label:"Scout",combat:"melee",health:100,speed:.026,damage:10,attackCooldown:1.05,interceptRange:1.55,energyReward:2}),
@@ -75,7 +75,7 @@ export function canBuildTower(game,slotId){
 }
 export function buildTower(game,slotId){
   if(!canBuildTower(game,slotId)||!spendEnergy(game,CONFIG.towerBuildCost))return false;
-  game.towers.push({slotId,level:1,cooldown:0});return true;
+  game.towers.push({slotId,cardId:game.selectedTowerCardId||game.battleMeta.towerId,level:1,cooldown:0});return true;
 }
 export function canUpgradeTower(game,slotId){
   const tower=game.towers.find(t=>t.slotId===slotId);
@@ -100,10 +100,12 @@ export function moveHero(game,point){
 }
 export function useHeroSkill(game){
   if(game.status!=="playing"||game.hero.state==="relocating"||game.hero.downTimer>0||game.hero.skillCooldown>0)return false;
-  const targets=game.enemies.filter(e=>distance(e.position,game.hero.position)<=CONFIG.heroSkillRadius);
+  const hero=game.battleMeta.hero;
+  const targets=game.enemies.filter(e=>distance(e.position,game.hero.position)<=hero.skillRange).sort((a,b)=>b.progress-a.progress);
   if(!targets.length)return false;
-  for(const t of targets)t.health-=game.battleMeta.hero.skillDamage;
-  game.hero.skillCooldown=CONFIG.heroSkillCooldown;return true;
+  const selected=hero.skillMode==="multi"?targets.slice(0,hero.skillTargets):targets;
+  for(const t of selected)t.health-=hero.skillDamage;
+  game.hero.skillCooldown=hero.skillCooldown;return true;
 }
 function spawnEnemy(game,typeId){
   const type=ENEMY_TYPES[typeId],id=game.nextEnemyId++,laneOffset=type.elite?0:LANE_OFFSETS[(id-1)%LANE_OFFSETS.length];
@@ -115,7 +117,7 @@ function moveToward(p,t,s,dt){
   const tr=Math.min(r,s*dt);p.x+=dx/r*tr;p.z+=dz/r*tr;return tr>=r-1e-6;
 }
 function findHeroTarget(game){
-  return game.enemies.filter(e=>e.health>0&&distance(e.position,game.hero.anchor)<=CONFIG.heroGuardRadius).sort((a,b)=>{
+  return game.enemies.filter(e=>e.health>0&&distance(e.position,game.hero.anchor)<=game.battleMeta.hero.guardRadius).sort((a,b)=>{
     const ae=ENEMY_TYPES[a.type].elite?1:0,be=ENEMY_TYPES[b.type].elite?1:0;
     return be-ae||b.progress-a.progress;
   })[0]||null;
@@ -123,14 +125,14 @@ function findHeroTarget(game){
 function updateHeroAI(game,dt){
   const h=game.hero;if(h.downTimer>0)return;
   if(h.manualDestination){
-    const arrived=moveToward(h.position,h.manualDestination,CONFIG.heroMoveSpeed,dt);h.state="relocating";h.targetId=null;
+    const arrived=moveToward(h.position,h.manualDestination,game.battleMeta.hero.moveSpeed,dt);h.state="relocating";h.targetId=null;
     if(arrived){h.manualDestination=null;h.state="guard";}return;
   }
   let t=game.enemies.find(e=>e.id===h.targetId&&e.health>0)||null;
-  if(t&&distance(t.position,h.anchor)>CONFIG.heroGuardRadius+.25){t=null;h.targetId=null;}
+  if(t&&distance(t.position,h.anchor)>game.battleMeta.hero.guardRadius+.25){t=null;h.targetId=null;}
   if(!t){t=findHeroTarget(game);h.targetId=t?.id??null;}
-  if(t){if(distance(h.position,t.position)>CONFIG.heroRange){moveToward(h.position,t.position,CONFIG.heroMoveSpeed,dt);h.state="chasing";}else h.state="fighting";return;}
-  if(distance(h.position,h.anchor)>.06){moveToward(h.position,h.anchor,CONFIG.heroMoveSpeed,dt);h.state="returning";}else{h.position={...h.anchor};h.state="guard";}
+  if(t){if(distance(h.position,t.position)>game.battleMeta.hero.attackRange){moveToward(h.position,t.position,game.battleMeta.hero.moveSpeed,dt);h.state="chasing";}else h.state="fighting";return;}
+  if(distance(h.position,h.anchor)>.06){moveToward(h.position,h.anchor,game.battleMeta.hero.moveSpeed,dt);h.state="returning";}else{h.position={...h.anchor};h.state="guard";}
 }
 function updateRespawn(game,dt){
   if(game.hero.downTimer<=0)return;
@@ -141,14 +143,17 @@ function moveEnemy(enemy,type,dt){enemy.progress+=type.speed*dt;enemy.position=s
 function nearestTarget(enemies,origin,range){return enemies.filter(e=>distance(e.position,origin)<=range).sort((a,b)=>b.progress-a.progress)[0];}
 function towerAttack(game,tower,enemies,origin,dt){
   const base=TOWER_LEVELS[tower.level];
-  const stats=getEffectiveTowerStats(game,tower.level,base);tower.cooldown=Math.max(0,tower.cooldown-dt);if(tower.cooldown>0)return null;
+  const stats=getEffectiveTowerStats(game,tower.level,base,tower.cardId);tower.cooldown=Math.max(0,tower.cooldown-dt);if(tower.cooldown>0)return null;
   const target=nearestTarget(enemies,origin,stats.range);if(!target)return null;
   const type=ENEMY_TYPES[target.type];
   const armored=type.elite&&target.health/target.maxHealth>type.armoredAbove;
-  target.health-=stats.damage*(armored?type.towerDamageMultiplier:1);
+  const special=getTowerSpecial(tower.cardId);
+  const baseMultiplier=armored?type.towerDamageMultiplier:1;
+  const armorMultiplier=armored?1-(1-baseMultiplier)*(1-special.armorPierce):1;
+  target.health-=stats.damage*armorMultiplier;
   tower.cooldown=stats.cooldown;return target;
 }
-export function getTowerStats(level,game=null){const base=TOWER_LEVELS[Math.max(1,Math.min(CONFIG.maxTowerLevel,level))];return game?getEffectiveTowerStats(game,level,base):base;}
+export function getTowerStats(level,game=null,cardId=null){const base=TOWER_LEVELS[Math.max(1,Math.min(CONFIG.maxTowerLevel,level))];return game?getEffectiveTowerStats(game,level,base,cardId||game.selectedTowerCardId):base;}
 export function getElite(game){return game.enemies.find(e=>ENEMY_TYPES[e.type].elite)||null;}
 
 export function updateGame(game,dt){
@@ -170,7 +175,7 @@ export function updateGame(game,dt){
       else moveEnemy(e,type,step);
       continue;
     }
-    const locked=heroActive&&game.hero.targetId===e.id&&game.hero.state!=="relocating";
+    const locked=heroActive&&game.battleMeta.hero.combat==="melee"&&game.hero.targetId===e.id&&game.hero.state!=="relocating";
     const melee=locked&&distance(e.position,game.hero.position)<=type.interceptRange;
     if(melee){e.engaged=true;e.engagement="melee";if(e.attackCooldown<=0){applyHeroDefense(game,type.damage);e.attackCooldown=type.attackCooldown;}}
     else moveEnemy(e,type,step);
@@ -179,7 +184,7 @@ export function updateGame(game,dt){
   if(heroActive&&game.hero.targetId&&game.hero.state!=="relocating"){
     const t=game.enemies.find(e=>e.id===game.hero.targetId&&e.health>0);
     game.hero.cooldown=Math.max(0,game.hero.cooldown-step);
-    if(t&&distance(t.position,game.hero.position)<=CONFIG.heroRange&&game.hero.cooldown<=0){t.health-=getHeroAttackDamage(game);game.hero.cooldown=game.battleMeta.hero.cooldown;}
+    if(t&&distance(t.position,game.hero.position)<=game.battleMeta.hero.attackRange&&game.hero.cooldown<=0){t.health-=getHeroAttackDamage(game);game.hero.cooldown=game.battleMeta.hero.cooldown;}
   }else game.hero.cooldown=Math.max(0,game.hero.cooldown-step);
 
   for(const tower of game.towers){
