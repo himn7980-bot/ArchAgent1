@@ -4,6 +4,7 @@ import { buildTower, CONFIG, createGame, ENEMY_TYPES, moveHero, removeTower, sta
 import { completeStage } from "./progression.mjs";
 import { grantStageReward } from "./meta-progression.mjs";
 import { formatStageReward } from "./reward-ui.mjs";
+import { installTowerDeckUi } from "./battle-deck-ui.mjs";
 
 const canvas = document.querySelector("#game");
 const ctx = canvas.getContext("2d");
@@ -72,7 +73,7 @@ function marker(point, label, color, radius = 15) {
 
 function drawTowerRange(slot) {
   const p = iso(slot); ctx.save();
-  ctx.beginPath(); ctx.ellipse(p.x, p.y, game.battleMeta.tower.range * 38, game.battleMeta.tower.range * 19, 0, 0, Math.PI * 2);
+  ctx.beginPath(); ctx.ellipse(p.x, p.y, (game.battleMeta.towerCards[game.towers.find(t=>t.slotId===slot)?.cardId||game.selectedTowerCardId]?.range||game.battleMeta.tower.range) * 38, (game.battleMeta.towerCards[game.towers.find(t=>t.slotId===slot)?.cardId||game.selectedTowerCardId]?.range||game.battleMeta.tower.range) * 19, 0, 0, Math.PI * 2);
   ctx.fillStyle = "#ffb23f18"; ctx.fill(); ctx.strokeStyle = "#ffc45caa"; ctx.lineWidth = 2; ctx.setLineDash([9, 7]); ctx.stroke(); ctx.restore();
 }
 
@@ -95,7 +96,7 @@ function drawHeroGuardRadius() {
   const anchor = iso(game.hero.anchor);
   ctx.save();
   ctx.beginPath();
-  ctx.ellipse(anchor.x, anchor.y, CONFIG.heroGuardRadius * 38, CONFIG.heroGuardRadius * 19, 0, 0, Math.PI * 2);
+  ctx.ellipse(anchor.x, anchor.y, game.battleMeta.hero.guardRadius * 38, game.battleMeta.hero.guardRadius * 19, 0, 0, Math.PI * 2);
   ctx.fillStyle = "#47ddff10";
   ctx.fill();
   ctx.strokeStyle = "#55e7ff88";
@@ -173,8 +174,8 @@ function render(now) {
   const heroTarget = game.enemies.find((e) => e.id === game.hero.targetId) || null;
   const hp = iso(game.hero.position); ctx.save(); ctx.shadowColor = game.hero.downTimer > 0 ? "#ff6b7f" : "#44e9ff"; ctx.shadowBlur = 20;
   ctx.beginPath(); ctx.arc(hp.x, hp.y - 11, 19, 0, Math.PI * 2); ctx.fillStyle = game.hero.downTimer > 0 ? "#5f2634" : "#e8f7ff"; ctx.fill(); ctx.shadowBlur = 0;
-  ctx.fillStyle = game.hero.downTimer > 0 ? "#3d1821" : "#135bd6"; ctx.fillRect(hp.x - 15, hp.y - 9, 30, 34); ctx.fillStyle = "#fff"; ctx.font = "900 11px system-ui"; ctx.textAlign = "center"; ctx.fillText("V", hp.x, hp.y + 11);
-  ctx.fillStyle = "#07111e"; ctx.fillRect(hp.x - 23, hp.y - 42, 46, 6); ctx.fillStyle = "#58f29b"; ctx.fillRect(hp.x - 23, hp.y - 42, 46 * Math.max(0, game.hero.health / CONFIG.heroMaxHealth), 6); ctx.restore();
+  ctx.fillStyle = game.hero.downTimer > 0 ? "#3d1821" : "#135bd6"; ctx.fillRect(hp.x - 15, hp.y - 9, 30, 34); ctx.fillStyle = "#fff"; ctx.font = "900 11px system-ui"; ctx.textAlign = "center"; ctx.fillText(game.battleMeta.heroId==="GRAMCAT"?"G":"V", hp.x, hp.y + 11);
+  ctx.fillStyle = "#07111e"; ctx.fillRect(hp.x - 23, hp.y - 42, 46, 6); ctx.fillStyle = "#58f29b"; ctx.fillRect(hp.x - 23, hp.y - 42, 46 * Math.max(0, game.hero.health / game.hero.maxHealth), 6); ctx.restore();
   if (heroTarget) {
     const target = iso(heroTarget.position);
     ctx.save();
@@ -205,14 +206,14 @@ function updateUi() {
   waveLabel.textContent = `Wave ${game.wave} / ${WAVES.length}`;
   coreLabel.textContent = `Leaks ${game.leaks}/${CONFIG.maxLeaks} · ${formatStars(getStageStars(game.leaks))}`;
   heroLabel.textContent = game.hero.downTimer > 0
-    ? `VOLYA respawn ${game.hero.downTimer.toFixed(1)}s`
-    : `VOLYA ${Math.ceil(game.hero.health)} / ${game.hero.maxHealth} · ${game.hero.state.toUpperCase()}`;
+    ? `${game.battleMeta.hero.name} respawn ${game.hero.downTimer.toFixed(1)}s`
+    : `${game.battleMeta.hero.name} ${Math.ceil(game.hero.health)} / ${game.hero.maxHealth} · ${game.hero.state.toUpperCase()}`;
   const clear = !game.spawnQueue.length && !game.enemies.length; startButton.disabled = !clear || game.status === "won" || game.status === "lost";
   startButton.textContent = game.wave >= WAVES.length ? "All Waves Deployed" : `Start Wave ${game.wave + 1}`;
   const cooldown = game.hero.skillCooldown;
   skillButton.disabled = game.status !== "playing" || Boolean(game.hero.manualDestination) || game.hero.downTimer > 0 || cooldown > 0;
-  skillButton.textContent = cooldown > 0 ? `GRAM Pulse · ${cooldown.toFixed(1)}s` : "GRAM Pulse";
-  message.textContent = game.status === "won" ? `VICTORY · ${formatStars(game.stars)} · ${formatStageReward(lastStageReward)} · Stage 02 unlocked.` : game.status === "lost" ? "DEFEAT · 10 enemies escaped." : game.status === "between" ? "Wave cleared. Set VOLYA's guard point and continue." : game.status === "playing" ? "Enemies use lane offsets. Archers can stop and fire from outside VOLYA's guard radius." : "Tap anywhere to set VOLYA's guard point, then start Wave 1.";
+  skillButton.textContent = cooldown > 0 ? `${game.battleMeta.hero.skillName} · ${cooldown.toFixed(1)}s` : game.battleMeta.hero.skillName;
+  message.textContent = game.status === "won" ? `VICTORY · ${formatStars(game.stars)} · ${formatStageReward(lastStageReward)} · Stage 02 unlocked.` : game.status === "lost" ? "DEFEAT · 10 enemies escaped." : game.status === "between" ? `Wave cleared. Reposition ${game.battleMeta.hero.name} and continue.` : game.status === "playing" ? `${game.battleMeta.hero.name} · ${game.battleMeta.hero.role} · ${game.selectedTowerCardId} selected.` : `Tap anywhere to set ${game.battleMeta.hero.name} guard point, then start Wave 1.`;
 }
 
 function advanceSimulation(realDt) {
@@ -236,11 +237,11 @@ requestAnimationFrame(loop);
 
 function setTowerMode(mode) {
   towerMode = mode;
-  towerCard.classList.toggle("selected", mode === "build");
-  towerCard.setAttribute("aria-pressed", String(mode === "build"));
   removeButton.setAttribute("aria-pressed", String(mode === "remove"));
   buildStatus.textContent = mode === "build" ? `Build mode · ${game.towers.length}/${CONFIG.maxTowers} towers active` : "Remove mode · Tap a built tower";
 }
+
+const towerDeckUi=installTowerDeckUi(game,towerCard,{onSelect:(cardId)=>{game.selectedTowerCardId=cardId;setTowerMode("build");}});
 
 canvas.addEventListener("pointerdown", (event) => {
   const rect = canvas.getBoundingClientRect(); const x = (event.clientX - rect.left) * canvas.width / rect.width; const y = (event.clientY - rect.top) * canvas.height / rect.height;
@@ -274,4 +275,4 @@ speedButton.addEventListener("click", () => {
 });
 towerCard.addEventListener("click", () => setTowerMode("build"));
 removeButton.addEventListener("click", () => setTowerMode("remove"));
-document.querySelector("#restart").addEventListener("click", () => { game = createGame(); selectedSlotId = null; pulseFxUntil = 0; victoryRecorded = false; lastStageReward = null; setTowerMode("build"); last = performance.now(); });
+document.querySelector("#restart").addEventListener("click", () => { game = createGame(); selectedSlotId = null; pulseFxUntil = 0; victoryRecorded = false; lastStageReward = null; towerDeckUi.select(game.selectedTowerCardId); setTowerMode("build"); last = performance.now(); });
