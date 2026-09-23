@@ -16,7 +16,8 @@ function renderSlots(container,items,size,type){
     const id=items[i];
     const el=document.createElement("div");
     el.className="loadout-slot";
-    el.innerHTML=`<small>SLOT ${i+1}</small><strong>${id||"EMPTY"}</strong>`;
+    const label=type==="hero"&&i===0?"ACTIVE HERO":type==="hero"?`HERO SLOT ${i+1}`:`TOWER CARD ${i+1}`;
+    el.innerHTML=`<small>${label}</small><strong>${id||"EMPTY"}</strong>`;
     container.appendChild(el);
   }
 }
