@@ -84,7 +84,7 @@ export function canBuildTower(game, slotId) {
 export function buildTower(game,slotId){
   if(!canBuildTower(game,slotId))return false;
   if(!spendEnergy(game,CONFIG.towerBuildCost))return false;
-  game.towers.push({slotId,level:1,cooldown:0});
+  game.towers.push({slotId,cardId:game.selectedTowerCardId||game.battleMeta.towerId,level:1,cooldown:0});
   return true;
 }
 
@@ -135,10 +135,12 @@ export function moveHero(game,point){
 
 export function useHeroSkill(game){
   if(game.status!=="playing"||game.hero.state==="relocating"||game.hero.downTimer>0||game.hero.skillCooldown>0)return false;
-  const targets=game.enemies.filter(e=>distance(e.position,game.hero.position)<=CONFIG.heroSkillRadius);
+  const hero=game.battleMeta.hero;
+  const targets=game.enemies.filter(e=>distance(e.position,game.hero.position)<=hero.skillRange).sort((a,b)=>b.progress-a.progress);
   if(!targets.length)return false;
-  for(const t of targets)t.health-=game.battleMeta.hero.skillDamage;
-  game.hero.skillCooldown=CONFIG.heroSkillCooldown;
+  const selected=hero.skillMode==="multi"?targets.slice(0,hero.skillTargets):targets;
+  for(const t of selected)t.health-=hero.skillDamage;
+  game.hero.skillCooldown=hero.skillCooldown;
   return true;
 }
 
@@ -157,28 +159,28 @@ function moveToward(p,t,s,dt){
 }
 
 function findHeroTarget(game){
-  return game.enemies.filter(e=>e.health>0&&distance(e.position,game.hero.anchor)<=CONFIG.heroGuardRadius).sort((a,b)=>b.progress-a.progress)[0]||null;
+  return game.enemies.filter(e=>e.health>0&&distance(e.position,game.hero.anchor)<=game.battleMeta.hero.guardRadius).sort((a,b)=>b.progress-a.progress)[0]||null;
 }
 
 function updateHeroAI(game,dt){
   const h=game.hero;
   if(h.downTimer>0)return;
   if(h.manualDestination){
-    const arrived=moveToward(h.position,h.manualDestination,CONFIG.heroMoveSpeed,dt);
+    const arrived=moveToward(h.position,h.manualDestination,game.battleMeta.hero.moveSpeed,dt);
     h.state="relocating";
     h.targetId=null;
     if(arrived){h.manualDestination=null;h.state="guard";}
     return;
   }
   let t=game.enemies.find(e=>e.id===h.targetId&&e.health>0)||null;
-  if(t&&distance(t.position,h.anchor)>CONFIG.heroGuardRadius+.25){t=null;h.targetId=null;}
+  if(t&&distance(t.position,h.anchor)>game.battleMeta.hero.guardRadius+.25){t=null;h.targetId=null;}
   if(!t){t=findHeroTarget(game);h.targetId=t?.id??null;}
   if(t){
-    if(distance(h.position,t.position)>CONFIG.heroRange){moveToward(h.position,t.position,CONFIG.heroMoveSpeed,dt);h.state="chasing";}
+    if(distance(h.position,t.position)>game.battleMeta.hero.attackRange){moveToward(h.position,t.position,game.battleMeta.hero.moveSpeed,dt);h.state="chasing";}
     else h.state="fighting";
     return;
   }
-  if(distance(h.position,h.anchor)>.06){moveToward(h.position,h.anchor,CONFIG.heroMoveSpeed,dt);h.state="returning";}
+  if(distance(h.position,h.anchor)>.06){moveToward(h.position,h.anchor,game.battleMeta.hero.moveSpeed,dt);h.state="returning";}
   else{h.position={...h.anchor};h.state="guard";}
 }
 
@@ -205,7 +207,7 @@ function nearestTarget(enemies,origin,range){
 
 function towerAttack(game,tower,enemies,origin,dt){
   const base=TOWER_LEVELS[tower.level];
-  const stats=getEffectiveTowerStats(game,tower.level,base);
+  const stats=getEffectiveTowerStats(game,tower.level,base,tower.cardId);
   tower.cooldown=Math.max(0,tower.cooldown-dt);
   if(tower.cooldown>0)return null;
   const target=nearestTarget(enemies,origin,stats.range);
@@ -215,7 +217,7 @@ function towerAttack(game,tower,enemies,origin,dt){
   return target;
 }
 
-export function getTowerStats(level,game=null){const base=TOWER_LEVELS[Math.max(1,Math.min(CONFIG.maxTowerLevel,level))];return game?getEffectiveTowerStats(game,level,base):base;}
+export function getTowerStats(level,game=null,cardId=null){const base=TOWER_LEVELS[Math.max(1,Math.min(CONFIG.maxTowerLevel,level))];return game?getEffectiveTowerStats(game,level,base,cardId||game.selectedTowerCardId):base;}
 
 export function updateGame(game,dt){
   const step=Math.max(0,Math.min(dt,.1));
@@ -254,7 +256,7 @@ export function updateGame(game,dt){
       continue;
     }
 
-    const locked=heroActive&&game.hero.targetId===e.id&&game.hero.state!=="relocating";
+    const locked=heroActive&&game.battleMeta.hero.combat==="melee"&&game.hero.targetId===e.id&&game.hero.state!=="relocating";
     const melee=locked&&distance(e.position,game.hero.position)<=type.interceptRange;
     if(melee){
       e.engaged=true;
@@ -266,7 +268,7 @@ export function updateGame(game,dt){
   if(heroActive&&game.hero.targetId&&game.hero.state!=="relocating"){
     const t=game.enemies.find(e=>e.id===game.hero.targetId&&e.health>0);
     game.hero.cooldown=Math.max(0,game.hero.cooldown-step);
-    if(t&&distance(t.position,game.hero.position)<=CONFIG.heroRange&&game.hero.cooldown<=0){
+    if(t&&distance(t.position,game.hero.position)<=game.battleMeta.hero.attackRange&&game.hero.cooldown<=0){
       t.health-=getHeroAttackDamage(game);
       game.hero.cooldown=game.battleMeta.hero.cooldown;
     }
