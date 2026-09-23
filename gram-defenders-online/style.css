@@ -97,3 +97,48 @@ footer p { width:100%; margin:0; color:#90a9bc; font-size:12px; text-align:cente
 
 .tower-card[data-tower-card-id="ENERGY"] { border-color:#4ccde6; }
 .tower-card[data-tower-card-id="ENERGY"].selected { box-shadow:0 0 0 1px #6ee9ff inset,0 0 22px #43d9ff33; }
+
+
+/* Landscape battle orientation — Design Freeze v1.17 */
+@media (orientation: portrait) and (max-width: 900px) {
+  body.battle-page {
+    overflow: hidden;
+    background: #050b12;
+  }
+
+  body.battle-page > .shell {
+    visibility: hidden;
+    pointer-events: none;
+  }
+
+  body.battle-page::before {
+    content: "ROTATE DEVICE\A GRAM Defenders gameplay is designed for landscape mode.";
+    white-space: pre-line;
+    position: fixed;
+    inset: 0;
+    z-index: 9999;
+    display: grid;
+    place-items: center;
+    padding: 32px;
+    text-align: center;
+    font: 900 18px/1.5 system-ui, sans-serif;
+    letter-spacing: .04em;
+    color: #e8f7ff;
+    background:
+      radial-gradient(circle at 50% 42%, #153a55 0, #07131f 42%, #03080d 100%);
+  }
+}
+
+@media (orientation: landscape) and (max-height: 650px) {
+  body.battle-page .shell { padding: 8px 12px 10px; gap: 8px; }
+  body.battle-page header { min-height: 52px; }
+  body.battle-page h1 { font-size: clamp(20px, 3vw, 30px); }
+  body.battle-page .eyebrow { margin-bottom: 2px; }
+  body.battle-page .game-wrap { min-height: 0; }
+  body.battle-page canvas { max-height: calc(100vh - 190px); }
+  body.battle-page footer { gap: 6px; }
+  body.battle-page .battle-actions,
+  body.battle-page .deck { gap: 6px; }
+  body.battle-page button,
+  body.battle-page .stage-link { min-height: 36px; padding: 7px 10px; font-size: 11px; }
+}
