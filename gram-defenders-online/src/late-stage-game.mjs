@@ -1,6 +1,6 @@
 import { BASE_ENEMIES, distance, getStageConfig, getTowerStats as getBaseTowerStats, samplePathWithOffset } from "./late-stage-config.mjs";
 import { STAGE_RATING, getStageStars } from "./stage-rating.mjs";
-import { applyHeroDefense, createBattleMeta, getEffectiveTowerStats, getHeroAttackDamage } from "./battle-meta.mjs";
+import { applyHeroDefense, createBattleMeta, getEffectiveTowerStats, getHeroAttackDamage, getTowerSpecial } from "./battle-meta.mjs";
 
 const LANE_OFFSETS=Object.freeze([-1.05,-.55,0,.55,1.05]);
 
@@ -27,7 +27,7 @@ function upgradeCost(cfg,nextLevel){return cfg.upgradeCosts[nextLevel]??Infinity
 
 export function createGame(stageId){
   const cfg=getStageConfig(stageId),start={x:-7,z:3},battleMeta=createBattleMeta();
-  return {stageId:cfg.id,battleMeta,status:"ready",leaks:0,stars:null,mainBossEscaped:false,wave:0,enemies:[],spawnQueue:[],spawnTimer:0,nextEnemyId:1,
+  return {stageId:cfg.id,battleMeta,selectedTowerCardId:battleMeta.towerId,status:"ready",leaks:0,stars:null,mainBossEscaped:false,wave:0,enemies:[],spawnQueue:[],spawnTimer:0,nextEnemyId:1,
     energy:cfg.startEnergy,lastEnergyGain:0,lastWaveBonus:0,
     hero:{position:{...start},anchor:{...start},manualDestination:null,targetId:null,state:"guard",health:battleMeta.hero.hp,maxHealth:battleMeta.hero.hp,critCharge:0,lastAttackCrit:false,lastDamageTaken:0,cooldown:0,skillCooldown:0,downTimer:0},
     towers:[]};
@@ -39,7 +39,7 @@ export function canBuildTower(game,slotId){
 export function buildTower(game,slotId){
   const cfg=getStageConfig(game.stageId);
   if(!canBuildTower(game,slotId)||!spendEnergy(game,cfg.buildCost))return false;
-  game.towers.push({slotId,level:1,cooldown:0});return true;
+  game.towers.push({slotId,cardId:game.selectedTowerCardId||game.battleMeta.towerId,level:1,cooldown:0});return true;
 }
 export function canUpgradeTower(game,slotId){
   const cfg=getStageConfig(game.stageId),tower=game.towers.find(t=>t.slotId===slotId);
@@ -72,24 +72,30 @@ export function moveHero(game,point){
   if(game.status==="won"||game.status==="lost"||game.hero.downTimer>0||!point||!Number.isFinite(point.x)||!Number.isFinite(point.z))return false;
   const d=clampPoint(cfg.map,point);game.hero.anchor={...d};game.hero.manualDestination={...d};game.hero.targetId=null;game.hero.state="relocating";return true;
 }
-function applyDamage(enemy,amount,source="hero"){
+function applyDamage(enemy,amount,source="hero",towerCardId=null){
   const type=BASE_ENEMIES[enemy.type];
   let damage=amount;
+  const special=source==="tower"?getTowerSpecial(towerCardId):{armorPierce:0,shieldMultiplier:1};
   if(source==="tower"&&type.elite&&type.armoredAbove!=null&&enemy.health/enemy.maxHealth>type.armoredAbove){
-    damage*=type.towerDamageMultiplier??1;
+    const base=type.towerDamageMultiplier??1;
+    damage*=1-(1-base)*(1-special.armorPierce);
   }
   if(enemy.shield>0){
-    const absorbed=Math.min(enemy.shield,damage);
-    enemy.shield-=absorbed;damage-=absorbed;
+    const shieldDamage=damage*(special.shieldMultiplier??1);
+    const absorbed=Math.min(enemy.shield,shieldDamage);
+    enemy.shield-=absorbed;
+    damage=Math.max(0,damage-absorbed/(special.shieldMultiplier??1));
   }
   if(damage>0)enemy.health-=damage;
 }
 export function useHeroSkill(game){
   if(game.status!=="playing"||game.hero.state==="relocating"||game.hero.downTimer>0||game.hero.skillCooldown>0)return false;
-  const targets=game.enemies.filter(e=>distance(e.position,game.hero.position)<=2.6);
+  const hero=game.battleMeta.hero;
+  const targets=game.enemies.filter(e=>distance(e.position,game.hero.position)<=hero.skillRange).sort((a,b)=>b.progress-a.progress);
   if(!targets.length)return false;
-  for(const t of targets)applyDamage(t,game.battleMeta.hero.skillDamage,"hero");
-  game.hero.skillCooldown=10;return true;
+  const selected=hero.skillMode==="multi"?targets.slice(0,hero.skillTargets):targets;
+  for(const t of selected)applyDamage(t,hero.skillDamage,"hero");
+  game.hero.skillCooldown=hero.skillCooldown;return true;
 }
 function spawnEnemy(game,typeId){
   const cfg=getStageConfig(game.stageId),type=BASE_ENEMIES[typeId],id=game.nextEnemyId++,laneOffset=type.elite?0:LANE_OFFSETS[(id-1)%LANE_OFFSETS.length];
@@ -109,14 +115,14 @@ function findHeroTarget(game){
 function updateHeroAI(game,dt){
   const h=game.hero;if(h.downTimer>0)return;
   if(h.manualDestination){
-    const arrived=moveToward(h.position,h.manualDestination,4.2,dt);h.state="relocating";h.targetId=null;
+    const arrived=moveToward(h.position,h.manualDestination,game.battleMeta.hero.moveSpeed,dt);h.state="relocating";h.targetId=null;
     if(arrived){h.manualDestination=null;h.state="guard";}return;
   }
   let t=game.enemies.find(e=>e.id===h.targetId&&e.health>0)||null;
-  if(t&&distance(t.position,h.anchor)>3.85){t=null;h.targetId=null;}
+  if(t&&distance(t.position,h.anchor)>game.battleMeta.hero.guardRadius+.25){t=null;h.targetId=null;}
   if(!t){t=findHeroTarget(game);h.targetId=t?.id??null;}
-  if(t){if(distance(h.position,t.position)>1.18){moveToward(h.position,t.position,4.2,dt);h.state="chasing";}else h.state="fighting";return;}
-  if(distance(h.position,h.anchor)>.06){moveToward(h.position,h.anchor,4.2,dt);h.state="returning";}else{h.position={...h.anchor};h.state="guard";}
+  if(t){if(distance(h.position,t.position)>game.battleMeta.hero.attackRange){moveToward(h.position,t.position,game.battleMeta.hero.moveSpeed,dt);h.state="chasing";}else h.state="fighting";return;}
+  if(distance(h.position,h.anchor)>.06){moveToward(h.position,h.anchor,game.battleMeta.hero.moveSpeed,dt);h.state="returning";}else{h.position={...h.anchor};h.state="guard";}
 }
 function updateRespawn(game,dt){
   if(game.hero.downTimer<=0)return;
@@ -129,14 +135,14 @@ function moveEnemy(game,enemy,type,dt){
   enemy.progress+=type.speed*mult*dt;enemy.position=samplePathWithOffset(cfg.map,enemy.progress,enemy.laneOffset);
 }
 function nearestTarget(enemies,origin,range){return enemies.filter(e=>distance(e.position,origin)<=range).sort((a,b)=>b.progress-a.progress)[0];}
-export function getTowerStats(level,game=null){
+export function getTowerStats(level,game=null,cardId=null){
   const base=getBaseTowerStats(level);
-  return game?getEffectiveTowerStats(game,level,base):base;
+  return game?getEffectiveTowerStats(game,level,base,cardId||game.selectedTowerCardId):base;
 }
 function towerAttack(game,tower,enemies,origin,dt){
-  const stats=getTowerStats(tower.level,game);tower.cooldown=Math.max(0,tower.cooldown-dt);if(tower.cooldown>0)return null;
+  const stats=getTowerStats(tower.level,game,tower.cardId);tower.cooldown=Math.max(0,tower.cooldown-dt);if(tower.cooldown>0)return null;
   const target=nearestTarget(enemies,origin,stats.range);if(!target)return null;
-  applyDamage(target,stats.damage,"tower");tower.cooldown=stats.cooldown;return target;
+  applyDamage(target,stats.damage,"tower",tower.cardId);tower.cooldown=stats.cooldown;return target;
 }
 export function getElite(game){return game.enemies.find(e=>BASE_ENEMIES[e.type].elite)||null;}
 export function getBossState(enemy){
@@ -172,7 +178,7 @@ export function updateGame(game,dt){
       }else moveEnemy(game,e,type,step);
       continue;
     }
-    const locked=heroActive&&game.hero.targetId===e.id&&game.hero.state!=="relocating";
+    const locked=heroActive&&game.battleMeta.hero.combat==="melee"&&game.hero.targetId===e.id&&game.hero.state!=="relocating";
     const melee=locked&&distance(e.position,game.hero.position)<=type.interceptRange;
     if(melee){
       e.engaged=true;e.engagement="melee";
@@ -187,7 +193,7 @@ export function updateGame(game,dt){
   if(heroActive&&game.hero.targetId&&game.hero.state!=="relocating"){
     const t=game.enemies.find(e=>e.id===game.hero.targetId&&e.health>0);
     game.hero.cooldown=Math.max(0,game.hero.cooldown-step);
-    if(t&&distance(t.position,game.hero.position)<=1.18&&game.hero.cooldown<=0){applyDamage(t,getHeroAttackDamage(game),"hero");game.hero.cooldown=game.battleMeta.hero.cooldown;}
+    if(t&&distance(t.position,game.hero.position)<=game.battleMeta.hero.attackRange&&game.hero.cooldown<=0){applyDamage(t,getHeroAttackDamage(game),"hero");game.hero.cooldown=game.battleMeta.hero.cooldown;}
   }else game.hero.cooldown=Math.max(0,game.hero.cooldown-step);
 
   for(const tower of game.towers){
