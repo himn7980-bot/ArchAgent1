@@ -5,6 +5,7 @@ import { completeStage } from "./progression.mjs";
 import { grantStageReward } from "./meta-progression.mjs";
 import { formatStageReward } from "./reward-ui.mjs";
 import { installTowerDeckUi } from "./battle-deck-ui.mjs";
+import { drawHeroToken } from "./hero-art.mjs";
 
 const canvas = document.querySelector("#game");
 const ctx = canvas.getContext("2d");
@@ -172,9 +173,8 @@ function render(now) {
     if (towerTarget && tower.cooldown > CONFIG.towerCooldown * 0.72) beam(towerSlot, towerTarget.position, "#ffc45c");
   }
   const heroTarget = game.enemies.find((e) => e.id === game.hero.targetId) || null;
-  const hp = iso(game.hero.position); ctx.save(); ctx.shadowColor = game.hero.downTimer > 0 ? "#ff6b7f" : "#44e9ff"; ctx.shadowBlur = 20;
-  ctx.beginPath(); ctx.arc(hp.x, hp.y - 11, 19, 0, Math.PI * 2); ctx.fillStyle = game.hero.downTimer > 0 ? "#5f2634" : "#e8f7ff"; ctx.fill(); ctx.shadowBlur = 0;
-  ctx.fillStyle = game.hero.downTimer > 0 ? "#3d1821" : "#135bd6"; ctx.fillRect(hp.x - 15, hp.y - 9, 30, 34); ctx.fillStyle = "#fff"; ctx.font = "900 11px system-ui"; ctx.textAlign = "center"; ctx.fillText(game.battleMeta.heroId==="GRAMCAT"?"G":"V", hp.x, hp.y + 11);
+  const hp = iso(game.hero.position); ctx.save();
+  drawHeroToken(ctx,game.battleMeta.heroId,hp.x,hp.y,{down:game.hero.downTimer>0});
   ctx.fillStyle = "#07111e"; ctx.fillRect(hp.x - 23, hp.y - 42, 46, 6); ctx.fillStyle = "#58f29b"; ctx.fillRect(hp.x - 23, hp.y - 42, 46 * Math.max(0, game.hero.health / game.hero.maxHealth), 6); ctx.restore();
   if (heroTarget) {
     const target = iso(heroTarget.position);
