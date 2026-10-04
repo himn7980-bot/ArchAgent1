@@ -5,6 +5,7 @@ import { completeStage, isStageUnlocked } from "./progression.mjs";
 import { grantStageReward } from "./meta-progression.mjs";
 import { formatStageReward } from "./reward-ui.mjs";
 import { installTowerDeckUi } from "./battle-deck-ui.mjs";
+import { drawHeroToken } from "./hero-art.mjs";
 if (!isStageUnlocked(4)) window.location.replace("/levels.html");
 
 const canvas=document.querySelector("#game"),ctx=canvas.getContext("2d");
@@ -52,7 +53,7 @@ function render(now){
   }
 
   const heroTarget=game.enemies.find(e=>e.id===game.hero.targetId)||null,hp=iso(game.hero.position);
-  ctx.save();ctx.shadowColor=game.hero.downTimer>0?"#ff6b7f":"#44e9ff";ctx.shadowBlur=20;ctx.beginPath();ctx.arc(hp.x,hp.y-11,19,0,Math.PI*2);ctx.fillStyle=game.hero.downTimer>0?"#5f2634":"#e8f7ff";ctx.fill();ctx.shadowBlur=0;ctx.fillStyle=game.hero.downTimer>0?"#3d1821":"#135bd6";ctx.fillRect(hp.x-15,hp.y-9,30,34);ctx.fillStyle="#fff";ctx.font="900 11px system-ui";ctx.textAlign="center";ctx.fillText(game.battleMeta.heroId==="GRAMCAT"?"G":"V",hp.x,hp.y+11);ctx.restore();
+  drawHeroToken(ctx,game.battleMeta.heroId,hp.x,hp.y,{down:game.hero.downTimer>0});
   if(heroTarget&&game.hero.state==="fighting"&&game.hero.cooldown>CONFIG.heroCooldown*.58)beam(game.hero.position,heroTarget.position,"#dffaff");
   drawPulse(now);
 }
