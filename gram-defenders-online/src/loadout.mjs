@@ -1,3 +1,4 @@
+import { VOLYA_ART_URI } from "./hero-art.mjs";
 import {
   HERO_BLUEPRINTS,TOWER_BLUEPRINTS,META_RULES,equipHero,equipTower,
   getHeroStats,getHeroUpgradeCost,getMetaState,getPowerScore,getTowerCardStats,
@@ -37,6 +38,7 @@ function render(){
     card.className=`collection-card ${entry.unlocked?"":"locked"}`;
     const stats=getHeroStats(id),cost=getHeroUpgradeCost(id);
     card.innerHTML=`
+      ${id==="VOLYA"?`<img class="hero-card-art" src="${VOLYA_ART_URI}" alt="VOLYA">`:""}
       <div class="collection-head"><div><small>HERO</small><h4>${bp.name}</h4><p>${bp.role}</p></div><b>Lv ${entry.level}</b></div>
       <div class="stats-grid">${statLine(stats)}</div>
       <div class="card-actions"></div>
