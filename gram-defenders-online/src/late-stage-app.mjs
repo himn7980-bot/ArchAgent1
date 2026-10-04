@@ -5,6 +5,7 @@ import { STAGE_RATING, formatStars, getStageStars } from "./stage-rating.mjs";
 import { grantStageReward } from "./meta-progression.mjs";
 import { formatStageReward } from "./reward-ui.mjs";
 import { installTowerDeckUi } from "./battle-deck-ui.mjs";
+import { drawHeroToken } from "./hero-art.mjs";
 
 const stageId=Number(document.body.dataset.stage);
 if(!isStageUnlocked(stageId)) window.location.replace("/levels.html");
@@ -47,7 +48,7 @@ function render(now){
     if(e.engagement==="ranged"&&e.attackCooldown>(type.attackCooldown??1)*.55)beam(e.position,game.hero.position,type.color);
   }
   for(const t of game.towers){const slot=MAP.towerSlots.find(s=>s.id===t.slotId),stats=getTowerStats(t.level),target=game.enemies.filter(e=>distance(e.position,slot)<=stats.range).sort((a,b)=>b.progress-a.progress)[0];if(target&&t.cooldown>stats.cooldown*.72)beam(slot,target.position,t.level===3?"#fff1a0":t.level===2?"#ffe083":"#ffc45c");}
-  const heroTarget=game.enemies.find(e=>e.id===game.hero.targetId)||null,hp=iso(game.hero.position);ctx.save();ctx.shadowColor=game.hero.downTimer>0?"#ff6b7f":"#44e9ff";ctx.shadowBlur=20;ctx.beginPath();ctx.arc(hp.x,hp.y-11,19,0,Math.PI*2);ctx.fillStyle=game.hero.downTimer>0?"#5f2634":"#e8f7ff";ctx.fill();ctx.shadowBlur=0;ctx.fillStyle=game.hero.downTimer>0?"#3d1821":"#135bd6";ctx.fillRect(hp.x-15,hp.y-9,30,34);ctx.fillStyle="#fff";ctx.font="900 11px system-ui";ctx.textAlign="center";ctx.fillText(game.battleMeta.heroId==="GRAMCAT"?"G":"V",hp.x,hp.y+11);ctx.restore();
+  const heroTarget=game.enemies.find(e=>e.id===game.hero.targetId)||null,hp=iso(game.hero.position);drawHeroToken(ctx,game.battleMeta.heroId,hp.x,hp.y,{down:game.hero.downTimer>0});
   if(heroTarget&&game.hero.state==="fighting"&&game.hero.cooldown>.42)beam(game.hero.position,heroTarget.position,"#dffaff");drawPulse(now);
 }
 
